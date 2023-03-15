@@ -1,0 +1,25 @@
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}"
+  file_logger:
+    kind: rolling_file
+    path: "log/log.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}"
+    policy:
+      trigger:
+        kind: size
+        limit: 10mb
+      roller:
+        kind: fixed_window
+        base: 1
+        count: 31
+        pattern: "log/log[{}]_{d(%Y-%m-%d %H:%M:%S)}.log"
+
+root:
+  level: DEBUG
+  appenders:
+    - stdout
+    - file_logger

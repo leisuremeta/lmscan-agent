@@ -1,0 +1,32 @@
+[package]
+name = "lmscan-agent"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+tokio = { version = "1.25.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0.152", features = ["derive"] } 
+chrono = "0.4.23"
+serde_with = "2.2.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+sha3 = "0.10.6"
+futures = "0.3.26"
+async-stream = { version = "0.3" }
+futures-util = { version = "0.3" }
+log = "0.4"
+async-trait = "0.1.65"
+dotenvy = "0.15.6"
+log4rs = "1.2.0"
+rust_decimal = "1.28"
+rust_decimal_macros = "1.28"
+async_once = "0.2.6"
+lazy_static = "1.4.0"
+itertools = "0.10.5"
+
+[dependencies.sea-orm]
+version = "0.11.0"
+features = ["sqlx-postgres", "runtime-tokio-native-tls", "sea-orm-macros", "with-chrono", "with-json", "postgres-array"]
+
