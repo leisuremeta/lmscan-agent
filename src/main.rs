@@ -31,23 +31,6 @@ static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
 static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
-async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decimal> {
-  let lm_token_id = 20315;
-  let coin_market: LmPrice = get_request_header_always(format!("https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={lm_token_id}"), &api_key).await;
-  if coin_market.status.error_code == 0 {
-    match coin_market.data.get(&lm_token_id) {
-      Some(data) => return Some(Decimal::from_f32(data.quote.usd.price).unwrap_or_default()),
-      None => {
-        error!("coin market api returned response error (code: {}, message: {})", 
-        coin_market.status.error_code, coin_market.status.error_message.unwrap_or_default());
-      },
-    }
-  } 
-  match get_last_saved_lm_price(db).await {
-    Some(latest_price) => Some(latest_price.lm_price),
-    None => Some(dec!(0.0)),
-  }
-}
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
   summary::Entity::find().order_by_desc(summary::Column::BlockNumber).one(db).await.unwrap()
@@ -192,6 +175,25 @@ async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summa
     },
   }
 }
+
+async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decimal> {
+  let lm_token_id = 20315;
+  let coin_market: LmPrice = get_request_header_always(format!("https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={lm_token_id}"), &api_key).await;
+  if coin_market.status.error_code == 0 {
+    match coin_market.data.get(&lm_token_id) {
+      Some(data) => return Some(Decimal::from_f32(data.quote.usd.price).unwrap_or_default()),
+      None => {
+        error!("coin market api returned response error (code: {}, message: {})", 
+        coin_market.status.error_code, coin_market.status.error_message.unwrap_or_default());
+      },
+    }
+  } 
+  match get_last_saved_lm_price(db).await {
+    Some(latest_price) => Some(latest_price.lm_price),
+    None => Some(dec!(0.0)),
+  }
+}
+
 
 
 async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn: &DatabaseTransaction) {
