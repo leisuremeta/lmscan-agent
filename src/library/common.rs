@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::NaiveDateTime;
 
-use crate::transaction::{TransactionWithResult, NftMetaInfo};
+use crate::transaction::TransactionWithResult;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -17,7 +17,6 @@ lazy_static! {
 pub async fn get_tx_request_always(url: String) -> TransactionWithResult {
   println!("get_request_always : {:?}", url.as_str());
   loop {
-    // match reqwest::get(url.as_str()).await {
     match CLIENT.get(url.as_str()).send().await {
       Ok(res) => match res.json::<TransactionWithResult>().await  {
         Ok(payload) => return payload,
