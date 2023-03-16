@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::{collections::HashMap};
 use std::time::Duration;
 use std::vec;
@@ -134,15 +135,22 @@ async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String>
 async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summary_opt: Option<summary::Model>) -> Option<i64> {
   match last_summary_opt {
     Some(last_summay) => {
-      let block_hashs = block_entity::Entity::find().select_only()
-                                                          .column(block_entity::Column::Hash)
-                                                          .filter(block_entity::Column::Number.gt(last_summay.block_number))
-                                                          .all(db).await.unwrap();
+      let query = block_entity::Entity::find().select_only()
+                                                .column_as(block_entity::Column::Hash, "hash")
+                                                .filter(block_entity::Column::Number.gt(last_summay.block_number))
+                                                .build(DbBackend::Postgres);
+
+      let block_hashs = match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_string())).await.ok() {
+        Some(vec) => {
+          vec.into_iter().map(|r| r.try_get::<String>("", "hash").unwrap()).into_iter().join(",")
+        }
+        _ => panic!(),
+      };
+      
       if block_hashs.is_empty() {
         return Some(last_summay.total_tx_size)
       }
 
-      let block_hashs = block_hashs.into_iter().map(|b| b.hash).join(",");
       let query = format!(
         r#"select 
                CAST(pg_column_size(json) AS BIGINT) AS size
@@ -441,7 +449,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
           error!("summary loop is skiped.")
         }
       }
-      sleep(Duration::from_secs(60 * 10)).await;
+      sleep(Duration::from_secs(60)).await;
     }
   }).await.unwrap();
 }
