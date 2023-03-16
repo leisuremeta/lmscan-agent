@@ -456,6 +456,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
 
 
 async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, db: &DatabaseConnection) {
+  info!("save_diff_state_proc started");
   let mut is_conitnue = !curr_block_hash.eq(&target_hash);
 
   let mut block_counter = 0;
@@ -488,10 +489,12 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
       txn.commit().await.unwrap();
     }
   }
+  info!("save_diff_state_proc ended");
 }
 
 
 async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &mut HashMap<String, i128>, nft_owner_info: &mut HashMap<String, String>) {
+  info!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
     let mut tx_entities = vec![];
     let mut block_entities = vec![];
@@ -552,6 +555,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
       error!("save transaction err: {err}");
     } 
   } 
+  info!("build_saved_state_proc ended");
 }
 
 
@@ -563,12 +567,10 @@ async fn block_check_loop(db: DatabaseConnection) {
     loop {
       info!("block_check_loop start");
       let ref node_status = get_node_status_always().await;
-      // let target_hash = get_last_saved_or_genesis_block_hash(node_status, &db).await;
       let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      info!("save_diff_state_proc started");
+      // let target_hash = get_last_saved_or_genesis_block_hash(node_status, &db).await;
       save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
-      info!("save_diff_state_proc ended");
-      
+            
       // 테스트 전용 로직.
       // let ref node_status = get_node_status_always().await;
       // let last_saved_block = get_last_saved_block(&db).await.unwrap();
@@ -577,9 +579,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       // save_diff_state_proc(last_saved_block.hash, target_hash, &db).await;
       // println!("save_diff_state_proc ended");
 
-      info!("build_saved_state_proc started");
       build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
-      info!("build_saved_state_proc ended");
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");
     }
