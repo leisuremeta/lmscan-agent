@@ -449,7 +449,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
           error!("summary loop is skiped.")
         }
       }
-      sleep(Duration::from_secs(60)).await;
+      sleep(Duration::from_secs(60 * 10)).await;
     }
   }).await.unwrap();
 }
