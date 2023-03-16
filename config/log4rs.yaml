@@ -16,7 +16,7 @@ appenders:
         kind: fixed_window
         base: 1
         count: 31
-        pattern: "log/log[{}]_{d(%Y-%m-%d %H:%M:%S)}.log"
+        pattern: "log/log_{}.log"
 
 root:
   level: DEBUG
