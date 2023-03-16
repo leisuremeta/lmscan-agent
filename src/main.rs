@@ -144,7 +144,7 @@ async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summa
       let block_hashs = block_hashs.into_iter().map(|b| b.hash).join(",");
       let query = format!(
         r#"select 
-               pg_size_pretty(CAST(pg_column_size(json) AS BIGINT)) AS size
+               CAST(pg_column_size(json) AS BIGINT) AS size
            from 
                tx
            where 
@@ -193,7 +193,6 @@ async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decima
     None => Some(dec!(0.0)),
   }
 }
-
 
 
 async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn: &DatabaseTransaction) {
