@@ -586,6 +586,7 @@ async fn block_check_loop(db: DatabaseConnection) {
   }).await.unwrap()
 }
 
+
 #[tokio::main]
 async fn main() {
   dotenv().expect("Unable to load environment variables from .env file");
