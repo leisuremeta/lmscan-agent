@@ -1162,22 +1162,22 @@ pub trait Job {
 
 impl Job for TransactionWithResult {
   fn update_nft_owner_info(&self, info: &mut HashMap<String, String>) -> HashSet<String> {
-    let mut update_accouts = HashSet::new();
+    let mut updated_accouts = HashSet::new();
     match &self.signed_tx.value {
       Transaction::TokenTx(tx) => match tx {
         TokenTx::TransferNft(tx) => {
           info.insert(tx.token_id.clone(), tx.output.clone());
-          update_accouts.insert(tx.token_id.clone());
+          updated_accouts.insert(tx.token_id.clone());
         },
         _ => ()
       },
       _ => ()
     }
-    update_accouts
+    updated_accouts
   }
 
   fn update_account_balance_info(&self, info: &mut HashMap<String, i128>) -> HashSet<String>{
-    let mut update_accouts = HashSet::new();
+    let mut updated_accouts = HashSet::new();
     let from_account = &self.signed_tx.sig.account;
     match &self.signed_tx.value {
         Transaction::RewardTx(tx) => match tx {
@@ -1190,7 +1190,7 @@ impl Job for TransactionWithResult {
                 info.insert(from_account.to_owned(), -sum);
               },
             }
-            update_accouts.insert(from_account.clone());
+            updated_accouts.insert(from_account.clone());
 
             // deposit to_account
             for (to_account, new_value) in t.outputs.iter() {
@@ -1200,7 +1200,7 @@ impl Job for TransactionWithResult {
                   info.insert(to_account.to_owned(), *new_value);
                 },
               };
-              update_accouts.insert(to_account.clone());
+              updated_accouts.insert(to_account.clone());
             };
           },
         RewardTx::ExecuteReward(t) => {
@@ -1214,7 +1214,7 @@ impl Job for TransactionWithResult {
                   info.insert(from_account.to_owned(), -sum);
                 },
               }
-              update_accouts.insert(from_account.clone());
+              updated_accouts.insert(from_account.clone());
 
               // deposit to_account
               for (to_account, new_value) in res.outputs.iter() {
@@ -1224,7 +1224,7 @@ impl Job for TransactionWithResult {
                     info.insert(to_account.to_owned(), *new_value);
                   },
                 };
-                update_accouts.insert(to_account.clone());
+                updated_accouts.insert(to_account.clone());
               };
             },
             _ => {},
@@ -1242,7 +1242,7 @@ impl Job for TransactionWithResult {
               info.insert(from_account.to_owned(), -sum);
             },
           }
-          update_accouts.insert(from_account.clone());
+          updated_accouts.insert(from_account.clone());
 
           // deposit to_account
           match info.get_mut(t.to.as_str()) {
@@ -1251,7 +1251,7 @@ impl Job for TransactionWithResult {
               info.insert(t.to.clone(), t.amount);
             },
           };
-          update_accouts.insert(t.to.clone());
+          updated_accouts.insert(t.to.clone());
         },
         TokenTx::TransferFungibleToken(t) => {
           // withdrawl from_account
@@ -1262,7 +1262,7 @@ impl Job for TransactionWithResult {
               info.insert(from_account.to_owned(), -sum);
             },
           }
-          update_accouts.insert(from_account.clone());
+          updated_accouts.insert(from_account.clone());
 
           // deposit to_account
           for (to_account, new_value) in t.outputs.iter() {
@@ -1272,7 +1272,7 @@ impl Job for TransactionWithResult {
                 info.insert(to_account.to_owned(), *new_value);
               },
             };
-            update_accouts.insert(to_account.clone());
+            updated_accouts.insert(to_account.clone());
           };
         },
         TokenTx::MintFungibleToken(t) => {
@@ -1284,7 +1284,7 @@ impl Job for TransactionWithResult {
               info.insert(from_account.to_owned(), -sum);
             },
           }
-          update_accouts.insert(from_account.clone());
+          updated_accouts.insert(from_account.clone());
 
           // deposit to_account
           for (to_account, new_value) in t.outputs.iter() {
@@ -1294,7 +1294,7 @@ impl Job for TransactionWithResult {
                 info.insert(to_account.to_owned(), *new_value);
               },
             };
-            update_accouts.insert(to_account.clone());
+            updated_accouts.insert(to_account.clone());
           };
         },  
         TokenTx::DisposeEntrustedFungibleToken(t) => {
@@ -1306,7 +1306,7 @@ impl Job for TransactionWithResult {
               info.insert(from_account.to_owned(), -sum);
             },
           }
-          update_accouts.insert(from_account.clone());
+          updated_accouts.insert(from_account.clone());
 
           // deposit to_account
           for (to_account, new_value) in t.outputs.iter() {
@@ -1316,14 +1316,14 @@ impl Job for TransactionWithResult {
                 info.insert(to_account.to_owned(), *new_value);
               },
             };
-            update_accouts.insert(to_account.clone());
+            updated_accouts.insert(to_account.clone());
           };
         },  
         _ => {},
       },
       _ => {}
     };
-    update_accouts
+    updated_accouts
   }
 
  

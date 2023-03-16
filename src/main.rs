@@ -207,7 +207,7 @@ async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decima
 async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn: &DatabaseTransaction) {
   if block_states.is_empty() { return }
   if let Err(err) = block_state::Entity::insert_many(block_states)
-                                               // .on_conflict(OnConflict::column(block_state::Column::Hash).do_nothing().to_owned())
+                                               .on_conflict(OnConflict::column(block_state::Column::Hash).do_nothing().to_owned())
                                                .exec(txn).await {
     info!("save_all_block_states err - {err}");
   }
@@ -216,7 +216,7 @@ async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn:
 async fn save_all_tx_states(txs: Vec<tx_state::ActiveModel>, txn: &DatabaseTransaction) {
   if txs.is_empty() { return }
   if let Err(err) = TxState::insert_many(txs)
-                                  // .on_conflict(OnConflict::column(tx_state::Column::Hash).do_nothing().to_owned())
+                                  .on_conflict(OnConflict::column(tx_state::Column::Hash).do_nothing().to_owned())
                                   .exec(txn).await {
     info!("save_all_tx_states err - {err}");
   }
@@ -225,7 +225,7 @@ async fn save_all_tx_states(txs: Vec<tx_state::ActiveModel>, txn: &DatabaseTrans
 async fn save_all_blocks(block_entities: Vec<block_entity::ActiveModel>, db: &DatabaseTransaction) -> bool {
   if block_entities.is_empty() { return true }
   if let Err(err) = BlockEntity::insert_many(block_entities)
-                                        // .on_conflict(OnConflict::column(block_entity::Column::Hash).do_nothing().to_owned())
+                                        .on_conflict(OnConflict::column(block_entity::Column::Hash).do_nothing().to_owned())
                                         .exec(db).await {
     return err != DbErr::RecordNotInserted;
   }
@@ -235,7 +235,7 @@ async fn save_all_blocks(block_entities: Vec<block_entity::ActiveModel>, db: &Da
 async fn save_all_txs(tx_entities: Vec<tx_entity::ActiveModel>, db: &DatabaseTransaction) -> bool {
   if tx_entities.is_empty() { return true }
   if let Err(err) = TxEntity::insert_many(tx_entities)
-                                            // .on_conflict(OnConflict::column(tx_entity::Column::Hash).do_nothing().to_owned())
+                                            .on_conflict(OnConflict::column(tx_entity::Column::Hash).do_nothing().to_owned())
                                             .exec(db).await {
     return err != DbErr::RecordNotInserted;
   }
