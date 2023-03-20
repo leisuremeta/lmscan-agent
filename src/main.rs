@@ -412,23 +412,6 @@ fn extract_addresses(create_account_opt: Option<&AdditionalEntity>) -> Vec<Strin
 }
 
 
-async fn db_connn(database_url: String) -> DatabaseConnection {
-  let mut opt = ConnectOptions::new(database_url.to_string());
-  opt.min_connections(8)
-     .max_connections(12)
-     .connect_timeout(Duration::from_secs(30))
-     .acquire_timeout(Duration::from_secs(30))
-     .idle_timeout(Duration::from_secs(120))
-     .set_schema_search_path("public".into())
-     .sqlx_logging(true)
-     .sqlx_logging_level(LevelFilter::Debug);
-
-  match Database::connect(opt).await {
-    Ok(conn) => conn,
-    Err(err) =>  panic!("{err}"),
-  }
-}
-
 async fn summary_loop(db: DatabaseConnection, api_key: String) {
   tokio::spawn(async move {
     loop {
@@ -597,9 +580,9 @@ async fn main() {
 
   let db = db_connn(database_url).await;
 
-  tokio::join!(
-    summary_loop(db.clone(), coin_market_api_key),
-    block_check_loop(db),
-  );
+  // tokio::join!(
+  //   summary_loop(db.clone(), coin_market_api_key),
+  //   block_check_loop(db),
+  // );
 }
 
