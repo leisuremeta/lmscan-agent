@@ -62,10 +62,11 @@ pub async fn get_request_header_always<T: reqwest::IntoUrl, S: serde::de::Deseri
 pub async fn get_request_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> S {
   info!("get_request_always : {:?}", url.as_str());
   let x = match reqwest::get(url.as_str()).await {
-      Ok(res) => match res.json::<S>().await  {
+      Ok(res) => match res.text().await{
         Ok(payload) => println!("payload: {:?}", payload),
         Err(err) => {
           println!("1 - {:?}\n{:?}", err, url.as_str());
+          println!("error response: {}",err);
         },
       }
       Err(err) => {println!("2 - {:?}", err);},
