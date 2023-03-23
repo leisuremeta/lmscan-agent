@@ -3,8 +3,9 @@ use lmscan_agent::model::nft_balance_info::{NftBalanceInfo, self};
 use lmscan_agent::model::nft_state::NftState;
 use lmscan_agent::{entity::account_entity, library::common::get_request_always, model::balance_info::BalanceInfo};
 use dotenvy::{dotenv, var};
-use lmscan_agent::library::common::db_connn;
+use lmscan_agent::library::common::{db_connn, get_request};
 use sea_orm::*;
+
 
 
 use std::collections::HashMap;
@@ -15,11 +16,13 @@ static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 async fn get_nft_balance_always(address: &str) -> HashMap<String, NftBalanceInfo> {
-  get_request_always(format!("{BASE_URI}/nft-balance/{address}")).await
+  let res: Result<HashMap<String, NftBalanceInfo>, reqwest::Error> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
+  res.unwrap_or_default()
 }
 
-async fn get_nft_token_always(token_id: &str) -> NftState {
-  get_request_always(format!("{BASE_URI}/token/{token_id}")).await
+async fn get_nft_token_always(token_id: &str) -> Option<NftState> {
+  let res: Result<NftState, reqwest::Error> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
+  res.ok()
 }
 
 #[tokio::test]
@@ -59,19 +62,15 @@ async fn validate_nft_owner() {
         
         let is_nft_exist_in_account_from_blockchain = nft_balance_info.get(token_id.as_str()).is_some();
 
-        if !is_nft_exist_in_account_from_blockchain {
-          println!("{address} 의 NFT balance 조회 결과 '{token_id}' Token ID 의 NFT를 블록체인에서 가지고 있지 않음 ");
-        }
-
-        let nft_state = get_nft_token_always(token_id.as_str()).await;
-        let current_owner = nft_state.current_owner;
+        let nft_state_opt = get_nft_token_always(token_id.as_str()).await;
+        let current_owner = if nft_state_opt.is_none() { "nft 데이터 블록체인에 존재 X".to_string() } else { nft_state_opt.unwrap().current_owner };
         let is_same_nft_owner = current_owner == address;
         
         let result = match (is_nft_exist_in_account_from_blockchain, is_same_nft_owner) {
           (true,  true)  => format!("{address} - {token_id} 일치"),
-          (true,  false) => format!("{address} : '{token_id}' 소유 O, '{token_id}'의 현재 소유주 X"),
+          (true,  false) => format!("{address} : '{token_id}' 소유 O, '{token_id}'의 현재 소유주 X '{current_owner}'"),
           (false, true)  => format!("{address} : '{token_id}' 소유 X, '{token_id}'의 현재 소유주 O"),
-          (false, false) => format!("{address} : '{token_id}' 소유 X, '{token_id}'의 현재 소유주 X"),
+          (false, false) => format!("{address} : '{token_id}' 소유 X, '{token_id}'의 현재 소유주 X '{current_owner}'"),
         };
         println!("{result}");
       }

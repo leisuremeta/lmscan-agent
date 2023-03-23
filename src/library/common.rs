@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::time::Duration;
 
 use log::{info, LevelFilter};
@@ -61,16 +62,6 @@ pub async fn get_request_header_always<T: reqwest::IntoUrl, S: serde::de::Deseri
 
 pub async fn get_request_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> S {
   info!("get_request_always : {:?}", url.as_str());
-  match reqwest::get(url.as_str()).await {
-      Ok(res) => match res.text().await{
-        Ok(payload) => println!("payload: {:?}", payload),
-        Err(err) => {
-          println!("1 - {:?}\n{:?}", err, url.as_str());
-          println!("error response: {}",err);
-        },
-      }
-      Err(err) => {println!("2 - {:?}", err);},
-    };
   loop {
     match CLIENT.get(url.as_str()).send().await {
       Ok(res) => match res.json::<S>().await  {
@@ -80,6 +71,34 @@ pub async fn get_request_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOw
       Err(err) => println!("get_request_always err '{err}' - {:?}", url.as_str()),
     }
     sleep(Duration::from_millis(500)).await;
+  }
+}
+
+
+pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<S, reqwest::Error> {
+  // match reqwest::get(url.as_str()).await {
+  //   Ok(res) => match res.text().await{
+  //     Ok(payload) => Ok(payload),
+  //     Err(err) => {
+  //       println!("error response: {}",err);
+  //       Err(err)
+  //     },
+  //   }
+  //   Err(err) => Err(err),
+  // }
+
+  match CLIENT.get(url.as_str()).send().await {
+    Ok(res) => match res.json::<S>().await  {
+      Ok(payload) => return Ok(payload),
+      Err(err) => {
+        println!("get_request_always parse err '{err}' - {:?}", url.as_str()); 
+        Err(err)
+      },
+    }
+    Err(err) => {
+      println!("get_request_always err '{err}' - {:?}", url.as_str()); 
+      Err(err)
+    },
   }
 }
 
