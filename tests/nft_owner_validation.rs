@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
-static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 async fn get_nft_balance_always(address: &str) -> HashMap<String, NftBalanceInfo> {
   get_request_always(format!("{BASE_URI}/nft-balance/{address}")).await
@@ -22,15 +22,12 @@ async fn get_nft_token_always(token_id: &str) -> NftState {
   get_request_always(format!("{BASE_URI}/token/{token_id}")).await
 }
 
-
+#[tokio::test]
 async fn validate_nft_owner() {
-  // dotenv().expect("Unable to load environment variables from .env file");
-  // let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
-  // let ref db = db_connn(database_url).await;
-
   let token_id_len = "202212211000092386".len();
 
-  let filename = "/Users/user/Downloads/nft_owner_service_202303211130.sql";
+  // let filename = "/Users/user/Downloads/nft_owner_service_202303211130.sql";
+  let filename = "/app/playnomm_scan/deploy/lmscan-agent/nft_owner_service_202303211130.sql";
   match File::open(filename) {
     Ok(file) => {
       let reader = BufReader::new(file);
