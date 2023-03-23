@@ -15,6 +15,14 @@ use std::io::{BufRead, BufReader};
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
+async fn get_account_always(address: &str) -> AccountInfo {
+  get_request_always(format!("{BASE_URI}/account/{address}")).await;
+}
+
+async fn get_nft_token_always(token_id: &str) -> NftState {
+  get_request_always(format!("{BASE_URI}/token/{token_id}")).await
+}
+
 async fn get_nft_balance(address: &str) -> HashMap<String, NftBalanceInfo> {
   let res: Result<HashMap<String, NftBalanceInfo>, reqwest::Error> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
   res.unwrap_or_default()
@@ -24,6 +32,7 @@ async fn get_nft_token(token_id: &str) -> Option<NftState> {
   let res: Result<NftState, reqwest::Error> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
   res.ok()
 }
+
 
 #[tokio::test]
 async fn validate_nft_owner() {
@@ -40,10 +49,13 @@ async fn validate_nft_owner() {
         let line = line.unwrap();
         let mut items = line.split_whitespace();
         // println!("{line}");
-        let token_id = items.next().unwrap().trim();
         let address = items.next().unwrap().trim();
+        let token_id = items.next().unwrap().trim();
 
-        println!("{token_id}, {address}");
+        get_account_always(address).await;
+        get_nft_token_always(token_id).await;
+
+        // println!("{token_id}, {address}");
 
         // for item in items {
         //   let item = item.replace("\"", "");
@@ -59,7 +71,9 @@ async fn validate_nft_owner() {
         // if address.is_empty()  { address = String::from("playnomm"); }
         // if token_id.is_empty() { println!("line: {line}"); panic!(); } 
 
+        
 
+        /*
         let nft_balance_info = get_nft_balance(address).await;
         let is_nft_exist_in_account_from_blockchain = nft_balance_info.contains_key(token_id);
 
@@ -74,6 +88,7 @@ async fn validate_nft_owner() {
           (false, false) => format!("{address}: '{token_id}' 소유 X, '{token_id}'의 현재 소유주 X '{current_owner}'"),
         };
         println!("{result}");
+        */
       }
     },
     Err(error) => {

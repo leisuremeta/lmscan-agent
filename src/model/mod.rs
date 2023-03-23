@@ -5,3 +5,4 @@ pub mod lm_price;
 pub mod balance_info;
 pub mod nft_balance_info;
 pub mod nft_state;
+pub mod account_info;
