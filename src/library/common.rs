@@ -91,7 +91,7 @@ pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + D
     Ok(res) => match res.json::<S>().await  {
       Ok(payload) => return Ok(payload),
       Err(err) => {
-        println!("get_request parse err '{err}' - {:?}", url.as_str()); 
+        // println!("get_request parse err '{err}' - {:?}", url.as_str()); 
         Err(err)
       },
     }
