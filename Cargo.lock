@@ -140,6 +140,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -945,6 +946,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "async_once",
+ "bigdecimal",
  "chrono",
  "dotenvy",
  "futures",

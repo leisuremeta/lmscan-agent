@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 use std::hash::Hash;
+use std::num::NonZeroU128;
 use std::{collections::HashMap};
 use std::time::Duration;
 use std::vec;
 
+use bigdecimal::BigDecimal;
+use bigdecimal::num_bigint::BigInt;
 use lmscan_agent::transaction::{TransactionWithResult, Common, Job, AdditionalEntity, ExtractEntity, AdditionalEntityKey};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -30,8 +33,8 @@ use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
-// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+// static BASE_URI: &str = "http://lmc.leisuremeta.io";
+static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
@@ -122,10 +125,15 @@ async fn get_total_accounts(db: &DatabaseConnection) -> Option<i64> {
   }
 }
 
-async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, i128> {
+async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, BigDecimal> {
   let accounts = account_entity::Entity::find().all(db).await.unwrap();
-  accounts.into_iter().map(|account| (account.address.to_owned(), account.balance.mantissa())).collect::<HashMap<String, i128>>()
+  accounts.into_iter().map(|account| (account.address, account.balance)).collect::<HashMap<String, BigDecimal>>()
 }
+
+// async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, i128> {
+//   let accounts = account_entity::Entity::find().all(db).await.unwrap();
+//   accounts.into_iter().map(|account| (account.address.to_owned(), account.balance.mantissa())).collect::<HashMap<String, i128>>()
+// }
 
 async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String> {
   let nft_files = nft_file::Entity::find().all(db).await.unwrap();
@@ -326,7 +334,7 @@ async fn update_all_nft_file_owner(token_id_owner_info: HashMap<String, String>,
 }
 
 
-async fn update_all_account_balance_info(account_balance_info: HashMap<String, i128>, db: &DatabaseTransaction) -> bool {
+async fn update_all_account_balance_info(account_balance_info: HashMap<String, BigDecimal>, db: &DatabaseTransaction) -> bool {
   if account_balance_info.is_empty() { return true }
   let balance_info = account_balance_info.iter()
                                           .map(|(address, balance)| format!("('{address}',{balance})"))
@@ -385,10 +393,10 @@ fn extract_updated_nft_owners(nft_owner_info: &HashMap<String, String>, transfer
   this_time_updated_nft_owners
 }
 
-fn extract_updated_balance_accounts(account_balance_info: &HashMap<String, i128>, balanced_updated_accounts: HashSet<String>) -> HashMap<String, i128> {
+fn extract_updated_balance_accounts(account_balance_info: &HashMap<String, BigDecimal>, balanced_updated_accounts: HashSet<String>) -> HashMap<String, BigDecimal> {
   let mut this_time_updated_balance_accounts = HashMap::new();
   account_balance_info.iter().filter(|(k, _)|  balanced_updated_accounts.contains(*k)).for_each(|(k, v)| {
-    this_time_updated_balance_accounts.insert(k.clone(), *v);
+    this_time_updated_balance_accounts.insert(k.clone(), v.clone());
   });
   this_time_updated_balance_accounts
 }
@@ -463,8 +471,8 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
 
     if !is_conitnue || block_counter == DOWNLOAD_BATCH_UNIT {
       let txn = db.begin().await.unwrap();
-      save_all_block_states(block_states.clone(), &txn).await;
-      save_all_tx_states(txs.clone(), &txn).await;
+      save_all_block_states(block_states.to_vec(), &txn).await;
+      save_all_tx_states(txs.to_vec(), &txn).await;
 
       block_counter = 0;
       block_states.clear();
@@ -476,7 +484,7 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
 }
 
 
-async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &mut HashMap<String, i128>, nft_owner_info: &mut HashMap<String, String>) {
+async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &mut HashMap<String, BigDecimal>, nft_owner_info: &mut HashMap<String, String>) {
   info!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
     let mut tx_entities = vec![];
@@ -536,6 +544,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
     if let Err(err) = save_res {
       remove_firstly_saved_create_events(addresses, token_ids, &db).await;
       error!("save transaction err: {err}");
+      panic!("ended - remove_firstly_saved_create_events");
     } 
   } 
   info!("build_saved_state_proc ended");
@@ -562,7 +571,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       // save_diff_state_proc(last_saved_block.hash, target_hash, &db).await;
       // println!("save_diff_state_proc ended");
 
-      build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
+      // build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");
     }
@@ -580,9 +589,10 @@ async fn main() {
 
   let db = db_connn(database_url).await;
 
-  // tokio::join!(
-  //   summary_loop(db.clone(), coin_market_api_key),
-  //   block_check_loop(db),
-  // );
+  tokio::join!(
+    // summary_loop(db.clone(), coin_market_api_key),
+    block_check_loop(db),
+  );
 }
 
+// ffc8197cb1aac0f67b6c559233d713ac9eafaaa5

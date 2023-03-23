@@ -1,3 +1,5 @@
+use bigdecimal::BigDecimal;
+use bigdecimal::num_bigint::BigInt;
 use sea_orm::Set;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -47,19 +49,19 @@ pub struct AddPublicKeySummariesResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BurnFungibleTokenResult {
   #[serde(rename = "outputAmount")]
-  pub output_amount: i128
+  pub output_amount: BigDecimal
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntrustFungibleTokenResult {
   #[serde(rename = "remainder")]
-  pub remainder: i128
+  pub remainder: BigDecimal
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteRewardResult {
   #[serde(rename = "outputs")]
-  pub outputs: HashMap<String, i128>
+  pub outputs: HashMap<String, BigDecimal>
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -145,7 +147,7 @@ pub struct OfferReward {
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
   pub inputs: Vec<String>,
-  pub outputs: HashMap<String, i128>,
+  pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
 }
 
@@ -232,7 +234,7 @@ pub struct EntrustFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
-  pub amount: i128,
+  pub amount: BigDecimal,
   pub inputs: Vec<String>,
   pub to: String,
 }
@@ -245,7 +247,7 @@ pub struct BurnFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
-  pub amount: i128,
+  pub amount: BigDecimal,
   pub inputs: Vec<String>,
 }
 
@@ -273,7 +275,7 @@ pub struct TransferFungibleToken {
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
   pub inputs: Vec<String>,
-  pub outputs: HashMap<String, i128>,
+  pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
 }
 
@@ -303,7 +305,7 @@ pub struct MintFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
-  pub outputs: HashMap<String, i128>,
+  pub outputs: HashMap<String, BigDecimal>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -384,7 +386,7 @@ pub struct DisposeEntrustedFungibleToken {
   #[serde(rename = "definitionId")]
   pub definition_id: String,
   pub inputs: Vec<String>,
-  pub outputs: HashMap<String, i128>,
+  pub outputs: HashMap<String, BigDecimal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1156,7 +1158,7 @@ pub struct NftMetaInfo {
 
 
 pub trait Job {
-  fn update_account_balance_info(&self, info: &mut HashMap<String, i128>) -> HashSet<String>;
+  fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
 }
 
@@ -1176,14 +1178,14 @@ impl Job for TransactionWithResult {
     updated_accouts
   }
 
-  fn update_account_balance_info(&self, info: &mut HashMap<String, i128>) -> HashSet<String>{
+  fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String> {
     let mut updated_accouts = HashSet::new();
     let from_account = &self.signed_tx.sig.account;
     match &self.signed_tx.value {
         Transaction::RewardTx(tx) => match tx {
           RewardTx::OfferReward(t) => {
             // withdrawl from_account
-            let sum: i128 = t.outputs.values().sum();
+            let sum: BigDecimal = t.outputs.values().sum();
             match info.get_mut(from_account) {
               Option::Some(value) => *value -= sum,
               None => {
@@ -1197,7 +1199,7 @@ impl Job for TransactionWithResult {
               match info.get_mut(to_account) {
                 Option::Some(value) => *value += new_value,
                 None => {
-                  info.insert(to_account.to_owned(), *new_value);
+                  info.insert(to_account.to_owned(), new_value.clone());
                 },
               };
               updated_accouts.insert(to_account.clone());
@@ -1207,7 +1209,7 @@ impl Job for TransactionWithResult {
           self.result.as_ref().map(|res| match res {
             TransactionResult::ExecuteRewardResult(res) => {
               // withdrawl from_account
-              let sum: i128 = res.outputs.values().sum();
+              let sum: BigDecimal = res.outputs.values().sum();
               match info.get_mut(from_account) {
                 Option::Some(value) => *value -= sum,
                 None => {
@@ -1221,41 +1223,41 @@ impl Job for TransactionWithResult {
                 match info.get_mut(to_account) {
                   Option::Some(value) => *value += new_value,
                   None => {
-                    info.insert(to_account.to_owned(), *new_value);
+                    info.insert(to_account.to_owned(), new_value.clone());
                   },
                 };
                 updated_accouts.insert(to_account.clone());
               };
             },
-            _ => {},
+            _ => (),
           });
         },
-        _ => {},
+        _ => (),
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::EntrustFungibleToken(t) => {
           // withdrawl from_account
-          let sum: i128 = t.amount as i128;
+          let sum: BigDecimal = t.amount.clone();
           match info.get_mut(from_account) {
             Option::Some(value) => *value -= sum,
             None => {
-              info.insert(from_account.to_owned(), -sum);
+              info.insert(from_account.clone(), -sum);
             },
           }
           updated_accouts.insert(from_account.clone());
 
           // deposit to_account
           match info.get_mut(t.to.as_str()) {
-            Option::Some(value) => *value += t.amount,
+            Option::Some(value) => *value += t.amount.clone(),
             None => {
-              info.insert(t.to.clone(), t.amount);
+              info.insert(t.to.clone(), t.amount.clone());
             },
           };
           updated_accouts.insert(t.to.clone());
         },
         TokenTx::TransferFungibleToken(t) => {
           // withdrawl from_account
-          let sum: i128 = t.outputs.values().sum();
+          let sum: BigDecimal = t.outputs.values().sum();
           match info.get_mut(from_account) {
             Option::Some(value) => *value -= sum,
             None => {
@@ -1269,7 +1271,7 @@ impl Job for TransactionWithResult {
             match info.get_mut(to_account) {
               Option::Some(value) => *value += new_value,
               None => {
-                info.insert(to_account.to_owned(), *new_value);
+                info.insert(to_account.to_owned(), new_value.clone());
               },
             };
             updated_accouts.insert(to_account.clone());
@@ -1277,7 +1279,7 @@ impl Job for TransactionWithResult {
         },
         TokenTx::MintFungibleToken(t) => {
           // withdrawl from_account
-          let sum: i128 = t.outputs.values().sum();
+          let sum: BigDecimal = t.outputs.values().sum();
           match info.get_mut(from_account) {
             Option::Some(value) => *value -= sum,
             None => {
@@ -1291,7 +1293,7 @@ impl Job for TransactionWithResult {
             match info.get_mut(to_account) {
               Option::Some(value) => *value += new_value,
               None => {
-                info.insert(to_account.to_owned(), *new_value);
+                info.insert(to_account.to_owned(), new_value.clone());
               },
             };
             updated_accouts.insert(to_account.clone());
@@ -1299,7 +1301,7 @@ impl Job for TransactionWithResult {
         },  
         TokenTx::DisposeEntrustedFungibleToken(t) => {
           // withdrawl from_account
-          let sum: i128 = t.outputs.values().sum();
+          let sum: BigDecimal = t.outputs.values().sum();
           match info.get_mut(from_account) {
             Option::Some(value) => *value -= sum,
             None => {
@@ -1313,15 +1315,23 @@ impl Job for TransactionWithResult {
             match info.get_mut(to_account) {
               Option::Some(value) => *value += new_value,
               None => {
-                info.insert(to_account.to_owned(), *new_value);
+                info.insert(to_account.to_owned(), new_value.clone());
               },
             };
             updated_accouts.insert(to_account.clone());
           };
         },  
-        _ => {},
+        TokenTx::BurnFungibleToken(t) => {
+          match info.get_mut(from_account) {
+            Option::Some(value) => *value -= t.amount.clone(),
+            None => { 
+              info.insert(from_account.clone(), BigDecimal::from(0));
+            },
+          }
+        },
+        _ => (),
       },
-      _ => {}
+      _ => ()
     };
     updated_accouts
   }
@@ -1410,7 +1420,7 @@ impl ExtractEntity for Transaction {
             None => { store.insert(AdditionalEntityKey::NftTx, AdditionalEntity::NftTx(vec![nft_tx.clone()])); },
           };
 
-          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: nft_tx.to_addr.unwrap() };
+          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: nft_tx.to_addr.clone().unwrap() };
           match store.get_mut(&AdditionalEntityKey::UpdateNftFile) {
             Some(v) => match v {
               AdditionalEntity::UpdateNftFile(vec) => vec.push(upd_nft_file.clone()),
