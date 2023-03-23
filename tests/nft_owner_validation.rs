@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use lmscan_agent::model::account_info::AccountInfo;
 use lmscan_agent::model::nft_balance_info::{NftBalanceInfo, self};
 use lmscan_agent::model::nft_state::NftState;
 use lmscan_agent::{entity::account_entity, library::common::get_request_always, model::balance_info::BalanceInfo};
@@ -16,7 +17,7 @@ static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 async fn get_account_always(address: &str) -> AccountInfo {
-  get_request_always(format!("{BASE_URI}/account/{address}")).await;
+  get_request_always(format!("{BASE_URI}/account/{address}")).await
 }
 
 async fn get_nft_token_always(token_id: &str) -> NftState {
