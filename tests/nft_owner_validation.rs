@@ -15,12 +15,12 @@ use std::io::{BufRead, BufReader};
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
-async fn get_nft_balance_always(address: &str) -> HashMap<String, NftBalanceInfo> {
+async fn get_nft_balance(address: &str) -> HashMap<String, NftBalanceInfo> {
   let res: Result<HashMap<String, NftBalanceInfo>, reqwest::Error> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
   res.unwrap_or_default()
 }
 
-async fn get_nft_token_always(token_id: &str) -> Option<NftState> {
+async fn get_nft_token(token_id: &str) -> Option<NftState> {
   let res: Result<NftState, reqwest::Error> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
   res.ok()
 }
@@ -30,7 +30,7 @@ async fn validate_nft_owner() {
   let token_id_len = "202212211000092386".len();
 
   // let filename = "/Users/user/Downloads/nft_owner_service_202303211130.sql";
-  let filename = "/app/playnomm_scan/deploy/lmscan-agent/nft_owner_service_202303211130.sql";
+  let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
   match File::open(filename) {
     Ok(file) => {
       let reader = BufReader::new(file);
@@ -57,12 +57,12 @@ async fn validate_nft_owner() {
         if address.is_empty()  { address = String::from("playnomm"); }
         if token_id.is_empty() { println!("line: {line}"); panic!(); } 
 
-        println!("{address}, {token_id}");
-        let nft_balance_info = get_nft_balance_always(address.as_str()).await;
+        // println!("{address}, {token_id}");
+        let nft_balance_info = get_nft_balance(address.as_str()).await;
         
         let is_nft_exist_in_account_from_blockchain = nft_balance_info.get(token_id.as_str()).is_some();
 
-        let nft_state_opt = get_nft_token_always(token_id.as_str()).await;
+        let nft_state_opt = get_nft_token(token_id.as_str()).await;
         let current_owner = if nft_state_opt.is_none() { "nft 데이터 블록체인에 존재 X".to_string() } else { nft_state_opt.unwrap().current_owner };
         let is_same_nft_owner = current_owner == address;
         
