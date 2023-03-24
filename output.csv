@@ -6,3 +6,4 @@ CASE
 5 - NFT 데이터가 블록체인에 존재하지 않음.
 
 USER_UUID(LM지갑주소), NFT_TokenID, CASE, 소유_NFT_TokenID_목록
+

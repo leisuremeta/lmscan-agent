@@ -34,16 +34,8 @@ async fn get_nft_token(token_id: &str) -> Option<NftState> {
   res.ok()
 }
 
-// (true,  true)  => format!("{address}: '{token_id}' 일치"),
-//           (true,  false) => format!("{address}: '{token_id}' 소유 O, '{token_id}'의 현재 소유주 X '{current_owner}'"),
-//           (false, true)  => format!("{address}: '{token_id}' 소유 X, '{token_id}'의 현재 소유주 O"),
-//           (false, false) => format!("{address}: '{token_id}' 소유 X, '{token_id}'의 현재 소유주 X '{current_owner}'"),
-
 #[tokio::test]
 async fn validate_nft_owner() {
-  let token_id_len = "202212211000092386".len();
-
-
   let read_file = "/Users/user/playnomm/source_code/lmscan-agent/data.txt";
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
   let write_file = "/Users/user/playnomm/source_code/lmscan-agent/output.csv";
@@ -63,6 +55,9 @@ async fn validate_nft_owner() {
     // println!("{line}");
     let address = items.next().unwrap().trim();
     let token_id = items.next().unwrap().trim();
+
+    // let nft = get_nft_token_always(token_id).await.token_id;
+    // println!("{nft}");
 
     // let account = get_account_always(address).await;
     // println!("{:?}, {:?}", address, token_id);
@@ -85,8 +80,9 @@ async fn validate_nft_owner() {
       (false, Some(_), false) => 4,
     };       
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
-    let output = format!("{address}    {token_id}    {result}    {token_ids}\n");
-    // Write to a file
+    let output = format!("{address}\t{token_id}\t{result}\t{token_ids}\n");
+    println!("{output}");
+
     output_file
         .write(output.as_bytes())
         .expect("write failed");
