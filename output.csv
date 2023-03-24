@@ -1,0 +1,8 @@
+CASE 
+1 - Address가 Token 소유하며 Token의 현재 소유주와 일치.
+2 - Address가 Token 소유하나, 현재 토큰의 소유주는 다른 계정.
+3 - Address가 Token 소유하지 않으나, 현재 토큰의 소유주로 되있음.
+4 - Address가 Token 소유하지 않으며, 현재 토큰의 소유주도 다른 사람.
+5 - NFT 데이터가 블록체인에 존재하지 않음.
+
+USER_UUID(LM지갑주소), NFT_TokenID, CASE, 소유_NFT_TokenID_목록

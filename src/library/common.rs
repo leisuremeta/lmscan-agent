@@ -66,7 +66,10 @@ pub async fn get_request_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOw
     match CLIENT.get(url.as_str()).send().await {
       Ok(res) => match res.json::<S>().await  {
         Ok(payload) => return payload,
-        Err(err) => println!("get_request_always parse err '{err}' - {:?}", url.as_str()),
+        Err(err) => {
+          println!("get_request_always parse err '{err}' - {:?}", url.as_str());
+          println!("{:?}",CLIENT.get(url.as_str()).send().await.ok().unwrap().text().await);
+        },
       }
       Err(err) => println!("get_request_always err '{err}' - {:?}", url.as_str()),
     }
