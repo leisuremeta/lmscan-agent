@@ -29,6 +29,7 @@ use log::{error, info, LevelFilter};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
+use tokio::task::JoinError;
 use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
@@ -443,7 +444,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
       sleep(Duration::from_secs(60 * 10)).await;
       // sleep(Duration::from_secs(10)).await;
     }
-  }).await.unwrap();
+  }).await.unwrap()
 }
 
 
@@ -589,7 +590,10 @@ async fn main() {
   let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
 
   let db = db_connn(database_url).await;
+  
+  tokio::join!(
+    summary_loop(db.clone(), coin_market_api_key),
+    block_check_loop(db),
+  );
 
-  summary_loop(db.clone(), coin_market_api_key).await;
-  block_check_loop(db).await;
 }
