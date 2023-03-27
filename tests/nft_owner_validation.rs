@@ -40,17 +40,18 @@ async fn validate_nft_owner() {
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
   let write_file = "/Users/user/playnomm/source_code/lmscan-agent/output.csv";
 
-  let mut writer = BufWriter::new(OpenOptions::new()
-                                          .append(true)
-                                          .open(write_file)
-                                          .expect("cannot open output file"));
+  let mut output_file = OpenOptions::new()
+                                    .append(true)
+                                    .open(write_file)
+                                    .expect("cannot open output file");
 
   let input_file = File::open(read_file)
                               .expect("cannot open input file");
   let reader = BufReader::new(input_file);
   let mut lines = reader.lines();
   lines.next();
-  for (num, line) in lines.enumerate() {
+
+  for line in lines {
     let line = line.unwrap();
     let mut items = line.split_whitespace();
     let address  = items.next().unwrap().trim();
@@ -82,15 +83,11 @@ async fn validate_nft_owner() {
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
     let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
     println!("{output}");
-
-    writeln!(writer, "{output}").unwrap();
-    if num % 100 == 0 {
-      writer.flush().unwrap();
-    }
-    // output_file
-    //     .write(output.as_bytes())
-    //     .expect("write failed");
+ 
+    output_file
+        .write(output.as_bytes())
+        .expect("write failed");
   }
-  writer.flush().unwrap();
+
 
 }

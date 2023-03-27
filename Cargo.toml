@@ -23,9 +23,9 @@ log4rs = "1.2.0"
 rust_decimal = "1.28"
 rust_decimal_macros = "1.28"
 bigdecimal = {version="0.3.0", features = ["serde"]}
+itertools = "0.10.5"
 async_once = "0.2.6"
 lazy_static = "1.4.0"
-itertools = "0.10.5"
 
 [dependencies.sea-orm]
 version = "0.11.0"
