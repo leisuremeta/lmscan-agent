@@ -33,8 +33,8 @@ use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
-static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
@@ -544,7 +544,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
     if let Err(err) = save_res {
       remove_firstly_saved_create_events(addresses, token_ids, &db).await;
       error!("save transaction err: {err}");
-      panic!("ended - remove_firstly_saved_create_events");
+      // panic!("ended - remove_firstly_saved_create_events");
     } 
   } 
   info!("build_saved_state_proc ended");
@@ -571,7 +571,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       // save_diff_state_proc(last_saved_block.hash, target_hash, &db).await;
       // println!("save_diff_state_proc ended");
 
-      // build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
+      build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");
     }
@@ -590,7 +590,7 @@ async fn main() {
   let db = db_connn(database_url).await;
 
   tokio::join!(
-    // summary_loop(db.clone(), coin_market_api_key),
+    summary_loop(db.clone(), coin_market_api_key),
     block_check_loop(db),
   );
 }
