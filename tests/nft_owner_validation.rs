@@ -36,9 +36,9 @@ async fn get_nft_token(token_id: &str) -> Option<NftState> {
 
 #[tokio::test]
 async fn validate_nft_owner() {
-  let read_file = "/Users/user/playnomm/source_code/lmscan-agent/data.txt";
+  let read_file = "/app/playnomm_scan/deploy/test/lmscan-agent/data.txt";
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
-  let write_file = "/Users/user/playnomm/source_code/lmscan-agent/output.csv";
+  let write_file = "/app/playnomm_scan/deploy/test/lmscan-agent/output.csv";
 
   let mut output_file = OpenOptions::new()
                                     .append(true)
