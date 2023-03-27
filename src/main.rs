@@ -172,7 +172,7 @@ async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summa
           let new_txs_size = res.unwrap().try_get::<i64>("", "size").unwrap();
           return Some(last_summay.total_tx_size + new_txs_size)
         }
-        _ => None
+        _ => Some(last_summay.total_tx_size)
       }
     },
     None => {
@@ -440,7 +440,8 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
           error!("summary loop is skiped.")
         }
       }
-      sleep(Duration::from_secs(60 * 10)).await;
+      // sleep(Duration::from_secs(60 * 10)).await;
+      sleep(Duration::from_secs(10)).await;
     }
   }).await.unwrap();
 }
@@ -589,10 +590,6 @@ async fn main() {
 
   let db = db_connn(database_url).await;
 
-  tokio::join!(
-    summary_loop(db.clone(), coin_market_api_key),
-    block_check_loop(db),
-  );
+  summary_loop(db.clone(), coin_market_api_key).await;
+  block_check_loop(db).await;
 }
-
-// ffc8197cb1aac0f67b6c559233d713ac9eafaaa5
