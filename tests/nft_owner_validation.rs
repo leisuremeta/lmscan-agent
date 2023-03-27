@@ -24,14 +24,14 @@ async fn get_nft_token_always(token_id: &str) -> NftState {
   get_request_always(format!("{BASE_URI}/token/{token_id}")).await
 }
 
-async fn get_nft_balance(address: &str) -> HashMap<String, NftBalanceInfo> {
-  let res: Result<HashMap<String, NftBalanceInfo>, reqwest::Error> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
+async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
+  let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
   res.unwrap_or_default()
 }
 
 async fn get_nft_token(token_id: &str) -> Option<NftState> {
-  let res: Result<NftState, reqwest::Error> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
-  res.ok()
+  let res: Result<Option<NftState>, String> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
+  res.unwrap_or_default()
 }
 
 #[tokio::test]
@@ -53,7 +53,7 @@ async fn validate_nft_owner() {
   for (num, line) in lines.enumerate() {
     let line = line.unwrap();
     let mut items = line.split_whitespace();
-    let address = items.next().unwrap().trim();
+    let address  = items.next().unwrap().trim();
     let token_id = items.next().unwrap().trim();
 
     // let nft = get_nft_token_always(token_id).await.token_id;
@@ -62,7 +62,8 @@ async fn validate_nft_owner() {
     // let account = get_account_always(address).await;
     // println!("{:?}, {:?}", address, token_id);
 
-    let nft_balance_info = get_nft_balance(address).await;
+    let nft_balance_info = get_nft_balance(address).await.unwrap_or_default();
+
     let is_nft_exist_in_account_from_blc = nft_balance_info.contains_key(token_id);
 
     let nft_opt = get_nft_token(token_id).await;
@@ -79,11 +80,11 @@ async fn validate_nft_owner() {
       None => 5, // NFT 데이터가 블록체인에 존재하지 않음.
     };       
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
-    let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'\n");
+    let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
     println!("{output}");
 
-    writeln!(writer, "This is a new line.").unwrap();
-    if num % 100 == 1 {
+    writeln!(writer, "{output}").unwrap();
+    if num % 100 == 0 {
       writer.flush().unwrap();
     }
     // output_file

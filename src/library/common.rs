@@ -9,6 +9,8 @@ use std::fmt::Debug;
 use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::NaiveDateTime;
 
+
+use crate::model::blockchain_response::{Either, ResultError};
 use crate::transaction::TransactionWithResult;
 use lazy_static::lazy_static;
 
@@ -78,7 +80,7 @@ pub async fn get_request_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOw
 }
 
 
-pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<S, reqwest::Error> {
+pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<Option<S>, String> {
   // match reqwest::get(url.as_str()).await {
   //   Ok(res) => match res.text().await{
   //     Ok(payload) => Ok(payload),
@@ -89,18 +91,26 @@ pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + D
   //   }
   //   Err(err) => Err(err),
   // }
-
   match CLIENT.get(url.as_str()).send().await {
-    Ok(res) => match res.json::<S>().await  {
-      Ok(payload) => return Ok(payload),
+    Ok(res) => match res.json::<Either<S, ResultError>>().await  {
+      Ok(payload) => match payload {
+        Either::Right(val) => Ok(Some(val)),
+        Either::Left(err) => {
+          if err.value.is_not_found_err() {
+            Ok(None)
+          } else {
+            Err(err.value.msg)
+          }
+        }
+      },
       Err(err) => {
         // println!("get_request parse err '{err}' - {:?}", url.as_str()); 
-        Err(err)
+        Err(err.to_string())
       },
     }
     Err(err) => {
-      println!("get_request http communication err: '{err}' - {:?}", url.as_str()); 
-      Err(err)
+      println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
+      Err(err.to_string())
     },
   }
 }
