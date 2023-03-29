@@ -7,12 +7,15 @@ use dotenvy::{dotenv, var};
 use lmscan_agent::library::common::{db_connn, get_request};
 use sea_orm::*;
 
+use rayon::prelude::*;
 
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write, BufWriter};
+use std::path::Path;
 
+static SPLIT_SIZE: usize = 3;
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
@@ -36,27 +39,28 @@ async fn get_nft_token(token_id: &str) -> Option<NftState> {
 
 #[tokio::test]
 async fn validate_nft_owner() {
-  let read_file = "/app/playnomm_scan/deploy/test/lmscan-agent/data.txt";
+  let read_file = "data.txt";
+  // let read_file = "/app/playnomm_scan/deploy/test/lmscan-agent/data.txt";
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
-  let write_file = "/app/playnomm_scan/deploy/test/lmscan-agent/output.csv";
+  // let write_file = "output.csv";
 
-  let mut output_file = OpenOptions::new()
-                                    .append(true)
-                                    .open(write_file)
-                                    .expect("cannot open output file");
+  let mut output_file: Option<File>;
 
   let input_file = File::open(read_file)
                               .expect("cannot open input file");
   let reader = BufReader::new(input_file);
   let mut lines = reader.lines();
   lines.next();
-
+  let mut idx = 0;
   for line in lines {
     let line = line.unwrap();
     let mut items = line.split_whitespace();
     let address  = items.next().unwrap().trim();
     let token_id = items.next().unwrap().trim();
-
+    if idx % 3000 == 0 {
+      output_file = Some(File::create(Path::new(&format!("nft_owner_check_{idx}.txt"))).expect("cannot open output file"));
+    }
+    idx += 1;
     // let nft = get_nft_token_always(token_id).await.token_id;
     // println!("{nft}");
 
@@ -78,16 +82,15 @@ async fn validate_nft_owner() {
         (false, true)  => 3, // Address가 Token 소유하지 않으나, 현재 토큰의 소유주로 되있음.
         (false, false) => 4, // Address가 Token 소유하지 않으며, 현재 토큰의 소유주도 다른 사람.
       }
-      None => 5, // NFT 데이터가 블록체인에 존재하지 않음.
+      None => 5, // NFT 데이터가 블록체인에 존재하지 않음./
     };       
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
     let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
     println!("{output}");
- 
-    output_file
-        .write(output.as_bytes())
-        .expect("write failed");
-  }
 
+    output_file.map(|mut file| {
+      file.write(output.as_bytes()).expect("write failed");
+    });
+  }
 
 }

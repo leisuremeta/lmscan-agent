@@ -34,8 +34,8 @@ use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
-// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+// static BASE_URI: &str = "http://lmc.leisuremeta.io";
+static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
@@ -142,56 +142,69 @@ async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String>
 }
 
 async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summary_opt: Option<summary::Model>) -> Option<i64> {
-  match last_summary_opt {
-    Some(last_summay) => {
-      let query = block_entity::Entity::find().select_only()
-                                                .column_as(block_entity::Column::Hash, "hash")
-                                                .filter(block_entity::Column::Number.gt(last_summay.block_number))
-                                                .build(DbBackend::Postgres);
+  let query = format!(
+    r#"select 
+           CAST(pg_column_size(json) AS BIGINT) AS size
+       from 
+           tx;"#);
 
-      let block_hashs = match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_string())).await.ok() {
-        Some(vec) => {
-          vec.into_iter().map(|r| r.try_get::<String>("", "hash").unwrap()).into_iter().join(",")
-        }
-        _ => panic!(),
-      };
-      
-      if block_hashs.is_empty() {
-        return Some(last_summay.total_tx_size)
-      }
-
-      let query = format!(
-        r#"select 
-               CAST(pg_column_size(json) AS BIGINT) AS size
-           from 
-               tx
-           where 
-               block_hash in ({block_hashs});"#);
-    
-      match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await.ok() {
-        Some(res) if res.is_some() => {
-          let new_txs_size = res.unwrap().try_get::<i64>("", "size").unwrap();
-          return Some(last_summay.total_tx_size + new_txs_size)
-        }
-        _ => Some(last_summay.total_tx_size)
-      }
-    },
-    None => {
-      let query = format!(
-        r#"select 
-               CAST(pg_column_size(json) AS BIGINT) AS size
-           from 
-               tx;"#);
-    
-      match db.query_all(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await.ok() {
-        Some(vec) => {
-          let new_txs_size = vec.into_iter().map(|r| r.try_get::<i64>("", "size").unwrap()).sum();
-          return Some(new_txs_size)
-        }
-        _ => None
-      }
-    },
+  match db.query_all(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await.ok() {
+    Some(vec) => {
+      let new_txs_size = vec.into_iter().map(|r| r.try_get::<i64>("", "size").unwrap()).sum();
+      return Some(new_txs_size)
+    }
+    _ => None
   }
+  // match last_summary_opt {
+  //   Some(last_summay) => {
+  //     let query = block_entity::Entity::find().select_only()
+  //                                               .column_as(block_entity::Column::Hash, "hash")
+  //                                               .filter(block_entity::Column::Number.gt(last_summay.block_number))
+  //                                               .build(DbBackend::Postgres);
+
+  //     let block_hashs = match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_string())).await.ok() {
+  //       Some(vec) => {
+  //         vec.into_iter().map(|r| r.try_get::<String>("", "hash").unwrap()).into_iter().join(",")
+  //       }
+  //       _ => panic!(),
+  //     };
+      
+  //     if block_hashs.is_empty() {
+  //       return Some(last_summay.total_tx_size)
+  //     }
+
+  //     let query = format!(
+  //       r#"select 
+  //              CAST(pg_column_size(json) AS BIGINT) AS size
+  //          from 
+  //              tx
+  //          where 
+  //              block_hash in ({block_hashs});"#);
+    
+  //     match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await.ok() {
+  //       Some(res) if res.is_some() => {
+  //         let new_txs_size = res.unwrap().try_get::<i64>("", "size").unwrap();
+  //         return Some(last_summay.total_tx_size + new_txs_size)
+  //       }
+  //       _ => Some(last_summay.total_tx_size)
+  //     }
+  //   },
+  //   None => {
+  //     let query = format!(
+  //       r#"select 
+  //              CAST(pg_column_size(json) AS BIGINT) AS size
+  //          from 
+  //              tx;"#);
+    
+  //     match db.query_all(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await.ok() {
+  //       Some(vec) => {
+  //         let new_txs_size = vec.into_iter().map(|r| r.try_get::<i64>("", "size").unwrap()).sum();
+  //         return Some(new_txs_size)
+  //       }
+  //       _ => None
+  //     }
+  //   },
+  // }
 }
 
 async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decimal> {
@@ -199,7 +212,8 @@ async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decima
   let coin_market: LmPrice = get_request_header_always(format!("https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={lm_token_id}"), &api_key).await;
   if coin_market.status.error_code == 0 {
     match coin_market.data.get(&lm_token_id) {
-      Some(data) => return Some(Decimal::from_f32(data.quote.usd.price).unwrap_or_default()),
+      Some(data) => 
+        return Some(Decimal::from_f32(data.quote.usd.price).unwrap_or_default()),
       None => {
         error!("coin market api returned response error (code: {}, message: {})", 
         coin_market.status.error_code, coin_market.status.error_message.unwrap_or_default());
@@ -486,9 +500,10 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
 }
 
 
-async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &mut HashMap<String, BigDecimal>, nft_owner_info: &mut HashMap<String, String>) {
+async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_info: HashMap<String, BigDecimal>, nft_owner_info: &mut HashMap<String, String>) -> HashMap<String, BigDecimal>{
   info!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
+    let mut clone_account_balance_info = account_balance_info.clone();
     let mut tx_entities = vec![];
     let mut block_entities = vec![];
     let mut additional_entity_store = HashMap::new();
@@ -505,7 +520,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
       if let Some(tx_states_in_block) = txs_in_block.remove(&block_state.hash) {
         for tx_state in tx_states_in_block {
           let tx_res = parse_from_json_str::<TransactionWithResult>(tx_state.json.as_str());
-          balance_updated_accounts.extend(tx_res.update_account_balance_info(account_balance_info));
+          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut clone_account_balance_info));
           transfered_nft_token_ids.extend(tx_res.update_nft_owner_info(nft_owner_info));
           
           let tx = &tx_res.signed_tx.value;
@@ -519,7 +534,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
     }
 
     let this_time_updated_nft_owners = extract_updated_nft_owners(&nft_owner_info, transfered_nft_token_ids);
-    let this_time_updated_balance_accounts = extract_updated_balance_accounts(&account_balance_info, balance_updated_accounts);
+    let this_time_updated_balance_accounts = extract_updated_balance_accounts(&clone_account_balance_info, balance_updated_accounts);
     let addresses = extract_addresses(additional_entity_store.get(&AdditionalEntityKey::CreateAccount));
     let token_ids = extract_token_ids(additional_entity_store.get(&AdditionalEntityKey::CreateNftFile));
     
@@ -547,9 +562,12 @@ async fn build_saved_state_proc(db: &DatabaseConnection, account_balance_info: &
       remove_firstly_saved_create_events(addresses, token_ids, &db).await;
       error!("save transaction err: {err}");
       // panic!("ended - remove_firstly_saved_create_events");
-    } 
+    } else {
+      account_balance_info = clone_account_balance_info
+    }
   } 
   info!("build_saved_state_proc ended");
+  account_balance_info
 }
 
 
@@ -557,7 +575,7 @@ async fn block_check_loop(db: DatabaseConnection) {
   tokio::spawn(async move {
     let mut account_balance_info = get_account_balance_infos(&db).await;
     let mut nft_owner_info = get_nft_owner_infos(&db).await;
-    build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
+    account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
     loop {
       info!("block_check_loop start");
       let ref node_status = get_node_status_always().await;
@@ -573,7 +591,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       // save_diff_state_proc(last_saved_block.hash, target_hash, &db).await;
       // println!("save_diff_state_proc ended");
 
-      build_saved_state_proc(&db, &mut account_balance_info, &mut nft_owner_info).await;
+      account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");
     }

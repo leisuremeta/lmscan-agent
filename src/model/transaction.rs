@@ -858,7 +858,7 @@ impl Common for DisposeEntrustedFungibleToken {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
-      token_type: Set("NFT".to_string()),
+      token_type: Set("LM".to_string()),
       sub_type: Set("DisposeEntrustedFungibleToken".to_string()),
       from_addr: Set(from_account),
       to_addr: Set(vec![to_accounts]),

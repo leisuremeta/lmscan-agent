@@ -1,6 +1,6 @@
-use std::{fs::{OpenOptions, File}, io::{BufReader, BufRead}, collections::HashMap};
+use std::{fs::{OpenOptions, File}, io::{BufReader, BufRead, Write}, collections::HashMap};
 
-use lmscan_agent::{model::{account_info::AccountInfo, nft_state::NftState}, library::common::get_request_always};
+use lmscan_agent::{model::{account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, library::common::{get_request_always, get_request}};
 
 
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
@@ -8,6 +8,11 @@ static BASE_URI: &str = "http://lmc.leisuremeta.io";
 
 async fn get_account_always(address: &str) -> AccountInfo {
   get_request_always(format!("{BASE_URI}/account/{address}")).await
+}
+
+async fn get_eth_address(eth_address: &str) -> Option<String> {
+  let res: Result<Option<String>, String> = get_request(format!("{BASE_URI}/eth/{eth_address}")).await;
+  res.unwrap_or_default()
 }
 
 async fn get_nft_token_always(token_id: &str) -> NftState {
@@ -40,13 +45,13 @@ async fn validate_nft_owner() {
   let reader = BufReader::new(input_file);
   let mut lines = reader.lines();
   lines.next();
-
+  let mut idx = 0;
   for line in lines {
     let line = line.unwrap();
     let mut items = line.split_whitespace();
     let address  = items.next().unwrap().trim();
     let token_id = items.next().unwrap().trim();
-
+    
     // let nft = get_nft_token_always(token_id).await.token_id;
     // println!("{nft}");
 
