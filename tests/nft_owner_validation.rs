@@ -44,13 +44,14 @@ async fn validate_nft_owner() {
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
   // let write_file = "output.csv";
 
-  let mut output_file: Option<File>;
+  let mut output_file: Option<File> = None;
 
   let input_file = File::open(read_file)
                               .expect("cannot open input file");
   let reader = BufReader::new(input_file);
   let mut lines = reader.lines();
   lines.next();
+  
   let mut idx = 0;
   for line in lines {
     let line = line.unwrap();
@@ -88,9 +89,11 @@ async fn validate_nft_owner() {
     let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
     println!("{output}");
 
-    output_file.map(|mut file| {
+    if let Some(mut file) = output_file {
       file.write(output.as_bytes()).expect("write failed");
-    });
+      output_file = Some(file);
+    }
+    
   }
 
 }
