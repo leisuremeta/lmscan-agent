@@ -58,7 +58,7 @@ async fn validate_nft_owner() {
     let mut items = line.split_whitespace();
     let address  = items.next().unwrap().trim();
     let token_id = items.next().unwrap().trim();
-    if idx % 3000 == 0 {
+    if idx % 1000 == 0 {
       output_file = Some(File::create(Path::new(&format!("nft_owner_check_{idx}.txt"))).expect("cannot open output file"));
     }
     idx += 1;
@@ -86,7 +86,7 @@ async fn validate_nft_owner() {
       None => 5, // NFT 데이터가 블록체인에 존재하지 않음./
     };       
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
-    let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
+    let output = format!("{address}\t{token_id}\t{result}\t{token_ids}\n");
     println!("{output}");
 
     if let Some(mut file) = output_file {

@@ -30,7 +30,7 @@ async fn get_nft_token(token_id: &str) -> Option<NftState> {
 }
 
 #[tokio::test]
-async fn validate_nft_owner() {
+async fn account_eth_address() {
   let read_file = "/app/playnomm_scan/deploy/test/lmscan-agent/data.txt";
   // let filename = "/app/playnomm_scan/deploy/test/lmscan-agent/nft_owner_service_202303211130.sql";
   let write_file = "/app/playnomm_scan/deploy/test/lmscan-agent/output.csv";
@@ -76,7 +76,7 @@ async fn validate_nft_owner() {
       None => 5, // NFT 데이터가 블록체인에 존재하지 않음.
     };       
     let token_ids = nft_balance_info.into_keys().collect::<Vec<String>>().join(",");
-    let output = format!("'{address}'\t'{token_id}'\t'{result}'\t'{token_ids}'");
+    let output = format!("{address}\t{token_id}\t{result}\t{token_ids}\n");
     println!("{output}");
  
     output_file
