@@ -34,8 +34,8 @@ use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
-static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {

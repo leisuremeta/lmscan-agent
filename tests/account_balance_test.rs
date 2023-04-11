@@ -6,8 +6,8 @@ use lmscan_agent::library::common::db_connn;
 use sea_orm::*;
 use log::info;
 
-static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+static BASE_URI: &str = "http://lmc.leisuremeta.io";
 
 async fn get_account_balance(hash: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
   get_request(format!("{BASE_URI}/balance/{hash}?movable=free")).await

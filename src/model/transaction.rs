@@ -38,7 +38,9 @@ pub enum TransactionResult {
   #[serde(rename = "EntrustFungibleTokenResult")]
   EntrustFungibleTokenResult(EntrustFungibleTokenResult),
   #[serde(rename = "ExecuteRewardResult")]
-  ExecuteRewardResult(ExecuteRewardResult)
+  ExecuteRewardResult(ExecuteRewardResult),
+  #[serde(rename = "VoteSimpleAgendaResult")]
+  VoteSimpleAgendaResult(VoteSimpleAgendaResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -64,6 +66,11 @@ pub struct ExecuteRewardResult {
   pub outputs: HashMap<String, BigDecimal>
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VoteSimpleAgendaResult {
+  #[serde(rename = "votingAmount")]
+  pub voting_amount: BigDecimal
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignedTx {
   pub sig: AccountSignature,
@@ -93,6 +100,8 @@ pub enum Transaction {
   AccountTx(AccountTx),
   #[serde(rename = "GroupTx")]
   GroupTx(GroupTx),
+  #[serde(rename = "AgendaTx")]
+  AgendaTx(AgendaTx)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -334,13 +343,12 @@ pub struct NftInfo {
 #[serde(rename_all = "PascalCase")]
 pub struct Some {
   #[serde(rename = "value")]
-  pub value: Value2,
+  pub value: Value,
 }
-
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct Value2 {
+pub struct Value {
   #[serde(rename = "minter")]
   pub minter: String,
   #[serde(rename = "rarity")]
@@ -398,8 +406,6 @@ pub enum AccountTx {
   #[serde(rename = "UpdateAccount")]
   UpdateAccount(UpdateAccount),
 }
-
-
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AddPublicKeySummaries {
@@ -465,6 +471,43 @@ pub struct CreateGroup {
   pub group_id: String,
   pub name: String,
   pub coordinator: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AgendaTx {
+  #[serde(rename = "SuggestSimpleAgenda")]
+  SuggestSimpleAgenda(SuggestSimpleAgenda),
+  #[serde(rename = "VoteSimpleAgenda")]
+  VoteSimpleAgenda(VoteSimpleAgenda),
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SuggestSimpleAgenda {
+  #[serde(rename = "networkId")]
+  pub network_id: i64,
+  #[serde(rename = "createdAt")]
+  pub created_at: String,
+  pub title: String,
+  #[serde(rename = "votingToken")]
+  pub voting_token: String,
+  #[serde(rename = "voteStart")]
+  pub vote_start: String,
+  #[serde(rename = "voteEnd")]
+  pub vote_end: String,
+  #[serde(rename = "voteOptions")]
+  pub vote_options: HashMap<String, String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VoteSimpleAgenda {
+  #[serde(rename = "networkId")]
+  pub network_id: i64,
+  #[serde(rename = "createdAt")]
+  pub created_at: String,
+  #[serde(rename = "agendaTxHash")]
+  agenda_tx_hash: String,
+  #[serde(rename = "selectedOption")]
+  selected_option: String,
 }
 
 pub trait Common {
@@ -1082,6 +1125,52 @@ impl Common for CreateGroup {
   }
 }
 
+impl Common for SuggestSimpleAgenda {
+  fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
+  fn network_id(&self) -> i64 { self.network_id }
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+    TxModel {
+      hash: Set(hash),
+      token_type: Set("".to_string()),
+      tx_type: Set("Agenda".to_string()),
+      sub_type: Set("SuggestSimpleAgenda".to_string()),
+      from_addr: Set(from_account),
+      to_addr: Set(vec![]),
+      block_hash: Set(block_hash),
+      block_number: Set(block_number),
+      event_time: Set(self.created_at()),
+      created_at: Set(now()),
+      input_hashs: Set(None),
+      output_vals: Set(None),
+      json: Set(json),
+    }
+  }
+}
+
+
+impl Common for VoteSimpleAgenda {
+  fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
+  fn network_id(&self) -> i64 { self.network_id }
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+    TxModel {
+      hash: Set(hash),
+      token_type: Set("".to_string()),
+      tx_type: Set("Agenda".to_string()),
+      sub_type: Set("VoteSimpleAgenda".to_string()),
+      from_addr: Set(from_account),
+      to_addr: Set(vec![]),
+      block_hash: Set(block_hash),
+      block_number: Set(block_number),
+      event_time: Set(self.created_at()),
+      created_at: Set(now()),
+      input_hashs: Set(None),
+      output_vals: Set(None),
+      json: Set(json),
+    }
+  }
+}
+
+
 impl Common for GroupTx {
   fn created_at(&self) -> i64 {
     match self {
@@ -1103,7 +1192,29 @@ impl Common for GroupTx {
       GroupTx::CreateGroup(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
     }
   }
-  
+}
+
+impl Common for AgendaTx {
+  fn created_at(&self) -> i64 {
+    match self {
+      AgendaTx::SuggestSimpleAgenda(t) => t.created_at(),
+      AgendaTx::VoteSimpleAgenda(t) => t.created_at(),
+    }
+  }
+
+  fn network_id(&self) -> i64 {
+    match self {
+      AgendaTx::SuggestSimpleAgenda(t) => t.network_id(),
+      AgendaTx::VoteSimpleAgenda(t) => t.network_id(),
+    }
+  }
+
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+    match self {
+      AgendaTx::SuggestSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      AgendaTx::VoteSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+    }
+  }
 }
 
 impl Common for Transaction {
@@ -1113,6 +1224,7 @@ impl Common for Transaction {
       Transaction::TokenTx(t) => t.created_at(),
       Transaction::AccountTx(t) => t.created_at(),
       Transaction::GroupTx(t) => t.created_at(),
+      Transaction::AgendaTx(t) => t.created_at(),
     }
   }
 
@@ -1122,6 +1234,7 @@ impl Common for Transaction {
       Transaction::TokenTx(t) => t.network_id(),
       Transaction::AccountTx(t) => t.network_id(),
       Transaction::GroupTx(t) => t.network_id(),
+      Transaction::AgendaTx(t) => t.network_id(),
     }
   }
 
@@ -1131,6 +1244,7 @@ impl Common for Transaction {
       Transaction::TokenTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       Transaction::AccountTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       Transaction::GroupTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      Transaction::AgendaTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
     }
   }
 }
