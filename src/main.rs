@@ -1,12 +1,9 @@
 use std::collections::HashSet;
-use std::hash::Hash;
-use std::num::NonZeroU128;
 use std::{collections::HashMap};
 use std::time::Duration;
 use std::vec;
 
 use bigdecimal::BigDecimal;
-use bigdecimal::num_bigint::BigInt;
 use lmscan_agent::transaction::{TransactionWithResult, Common, Job, AdditionalEntity, ExtractEntity, AdditionalEntityKey};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -14,7 +11,7 @@ use rust_decimal_macros::dec;
 use sea_orm::sea_query::{OnConflict, Expr};
 
 use lmscan_agent::{model::{block::Block, node_status::NodeStatus}, entity::*};
-use sea_orm::{Database, DatabaseConnection, ConnectOptions};
+use sea_orm::{DatabaseConnection};
 use sea_orm::*;
 use lmscan_agent::summary;
 use lmscan_agent::block_state::{Entity as BlockState};
@@ -25,17 +22,17 @@ use lmscan_agent::library::common::*;
 use lmscan_agent::model::lm_price::LmPrice;
 use itertools::Itertools; 
 
-use log::{error, info, LevelFilter};
+use log::{error, info};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
-use tokio::task::JoinError;
 use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
+// static BASE_URI: &str = "http://localhost:8080";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
@@ -342,7 +339,7 @@ async fn update_all_nft_file_owner(token_id_owner_info: HashMap<String, String>,
   match txn.query_one(Statement::from_string(DatabaseBackend::Postgres, query.to_owned())).await {
     Err(err) => {
       error!("update_all_nft_file_owner err: {err}");
-      panic!()
+      false
     },
     _ => true
   }

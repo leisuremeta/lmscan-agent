@@ -542,13 +542,13 @@ impl Common for RecordActivity {
 impl Common for RegisterDao {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, fromAccount: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Reward".to_string()),
       token_type: Set("LM".to_string()),
       sub_type: Set("RegisterDao".to_string()),
-      from_addr: Set(fromAccount),
+      from_addr: Set(from_account),
       to_addr: Set(vec![]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
@@ -587,7 +587,7 @@ impl Common for OfferReward {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_accounts: Vec<String> = self.outputs.keys().cloned().collect();
+    let to_accounts: Vec<String> = self.outputs.keys().map(|s| s.trim().to_string()).collect();
     let output_vals = self.outputs.iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
       hash: Set(hash),
@@ -612,17 +612,19 @@ impl Common for ExecuteReward {
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
 
-    let mut to_accounts = vec![];
-    let output_vals: Option<Vec<String>> = match tx_res_opt {
+    // let mut to_accounts = vec![];
+    let (to_accounts, output_vals) = match tx_res_opt {
         Option::Some(tx_res) => 
           match tx_res {
             TransactionResult::ExecuteRewardResult(res) => {
-              to_accounts = res.outputs.keys().into_iter().cloned().collect();
-              Some(res.outputs.into_iter().map(|(k, v)| {k + "/" + &v.to_string()}).collect())
+              (
+                res.outputs.keys().into_iter().map(|to| to.trim().to_string()).collect(),
+                Some(res.outputs.into_iter().map(|(k, v)| {k + "/" + &v.to_string()}).collect())
+              )
             }
-            _ => None,
+            _ => (vec![], None),
         },
-        None => None,
+        None => (vec![], None),
     };
 
     TxModel {
@@ -684,13 +686,13 @@ impl Common for EntrustNft {
       token_type: Set("LM".to_string()),
       sub_type: Set("EntrustNft".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.to.to_owned()]),
+      to_addr: Set(vec![self.to.trim().to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
       input_hashs: Set(Some(vec![self.input.clone()])),
-      output_vals: Set(Some(vec![self.to.to_owned() + "/" + &self.token_id])),
+      output_vals: Set(Some(vec![self.to.trim().to_owned() + "/" + &self.token_id])),
       json: Set(json),
     }
   }
@@ -706,7 +708,7 @@ impl Common for EntrustFungibleToken {
       token_type: Set("LM".to_string()),
       sub_type: Set("EntrustFungibleToken".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.to.clone()]),
+      to_addr: Set(vec![self.to.trim().to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -772,8 +774,8 @@ impl Common for TransferFungibleToken {
         Option::Some(tx_res) => 
           match tx_res {
             TransactionResult::ExecuteRewardResult(res) => {
-              to_accounts = res.outputs.keys().into_iter().cloned().collect();
-              Some(res.outputs.into_iter().map(|(k, v)| {k + "/" + &v.to_string()}).collect())
+              to_accounts = res.outputs.keys().into_iter().map(|addr| addr.trim().to_owned()).collect();
+              Some(res.outputs.into_iter().map(|(k, v)| k + "/" + &v.to_string()).collect())
             }
             _ => None,
         },
@@ -802,7 +804,7 @@ impl Common for MintNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_addr = self.output.clone();
+    let to_addr = self.output.trim().to_owned();
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -870,7 +872,7 @@ impl Common for DisposeEntrustedNft {
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
     let to_account = match &self.output {
-        Option::Some(value) => value.clone(),
+      Option::Some(value) => value.trim().to_owned(),
         None => String::from(""),
     };
 
@@ -896,7 +898,7 @@ impl Common for DisposeEntrustedFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_accounts = (&self.outputs).keys().cloned().collect();
+    let to_accounts = (&self.outputs).keys().map(|addr| addr.trim().to_owned()).collect();
     let output_vals: Vec<String> = (&self.outputs).into_iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
       hash: Set(hash),
@@ -998,7 +1000,7 @@ impl Common for AddPublicKeySummaries {
       token_type: Set("LM".to_string()),
       sub_type: Set("AddPublicKeySummaries".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.account.clone()]),
+      to_addr: Set(vec![self.account.trim().to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1020,7 +1022,7 @@ impl Common for CreateAccount {
       token_type: Set("LM".to_string()),
       sub_type: Set("CreateAccount".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.account.clone()]),
+      to_addr: Set(vec![self.account.trim().to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1042,7 +1044,7 @@ impl Common for UpdateAccount {
       token_type: Set("LM".to_string()),
       from_addr: Set(from_account),
       sub_type: Set("UpdateAccount".to_string()),
-      to_addr: Set(vec![self.account.clone()]),
+      to_addr: Set(vec![self.account.trim().to_owned().clone()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1239,6 +1241,7 @@ impl Common for Transaction {
   }
 
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+    let from_account = from_account.trim().to_owned();
     match self {
       Transaction::RewardTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       Transaction::TokenTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
@@ -1449,12 +1452,7 @@ impl Job for TransactionWithResult {
     };
     updated_accouts
   }
-
- 
 }
-
-
-
 
 #[derive(Debug, Clone)]
 pub enum AdditionalEntity {
@@ -1471,7 +1469,6 @@ pub enum AdditionalEntityKey {
   NftTx,
   CreateAccount,
 }
-
 
 pub trait Extract: Send + Debug  {}
 
