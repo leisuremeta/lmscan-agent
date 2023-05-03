@@ -40,7 +40,7 @@ impl Model {
       creator: Set(info.creator),
       event_time: Set(as_timestamp(&tx.created_at)),
       created_at: Set(now()),
-      owner: Set(tx.output.clone()),
+      owner: Set(tx.output.trim().to_owned()),
     }
   }
 }

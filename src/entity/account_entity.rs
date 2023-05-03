@@ -26,7 +26,7 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Model {
   pub fn from(tx: &CreateAccount) -> ActiveModel {
     ActiveModel {
-        address: Set(tx.account.clone()),
+        address: Set(tx.account.trim().to_owned()),
         balance: Set(BigDecimal::from(0)),
         amount: Set(dec!(0.0)),
         event_time: Set(as_timestamp(&tx.created_at)),
