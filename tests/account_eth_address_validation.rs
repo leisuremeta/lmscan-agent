@@ -1,33 +1,8 @@
-use std::{fs::{OpenOptions, File}, io::{BufReader, BufRead, Write}, collections::HashMap};
+use std::{fs::{OpenOptions, File}, io::{BufReader, BufRead, Write}};
 
-use lmscan_agent::{model::{account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, library::common::{get_request_always, get_request}};
+use lmscan_agent::service::api_service::ApiService;
 
 
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
-// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-
-async fn get_account_always(address: &str) -> AccountInfo {
-  get_request_always(format!("{BASE_URI}/account/{address}")).await
-}
-
-async fn get_eth_address(eth_address: &str) -> Option<String> {
-  let res: Result<Option<String>, String> = get_request(format!("{BASE_URI}/eth/{eth_address}")).await;
-  res.unwrap_or_default()
-}
-
-async fn get_nft_token_always(token_id: &str) -> NftState {
-  get_request_always(format!("{BASE_URI}/token/{token_id}")).await
-}
-
-async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
-  let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
-  res.unwrap_or_default()
-}
-
-async fn get_nft_token(token_id: &str) -> Option<NftState> {
-  let res: Result<Option<NftState>, String> = get_request(format!("{BASE_URI}/token/{token_id}")).await;
-  res.unwrap_or_default()
-}
 
 #[tokio::test]
 async fn account_eth_address() {
@@ -58,11 +33,11 @@ async fn account_eth_address() {
     // let account = get_account_always(address).await;
     // println!("{:?}, {:?}", address, token_id);
 
-    let nft_balance_info = get_nft_balance(address).await.unwrap_or_default();
+    let nft_balance_info = ApiService::get_nft_balance(address).await.unwrap_or_default();
 
     let is_nft_exist_in_account_from_blc = nft_balance_info.contains_key(token_id);
 
-    let nft_opt = get_nft_token(token_id).await;
+    let nft_opt = ApiService::get_nft_token(token_id).await;
     let current_owner = if nft_opt.is_none() { "NFT 데이터 블록체인에 존재 X".to_string() } else { nft_opt.as_ref().unwrap().current_owner.clone() };
     let is_same_nft_owner = current_owner == address;
     

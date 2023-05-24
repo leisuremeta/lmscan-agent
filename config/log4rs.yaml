@@ -19,7 +19,7 @@ appenders:
         pattern: "log/log_{}.log"
 
 root:
-  level: DEBUG
+  level: ERROR
   appenders:
     - stdout
     - file_logger

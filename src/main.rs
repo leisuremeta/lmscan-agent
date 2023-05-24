@@ -4,6 +4,8 @@ use std::time::Duration;
 use std::vec;
 
 use bigdecimal::BigDecimal;
+use futures::executor::block_on;
+use lmscan_agent::service::api_service::ApiService;
 use lmscan_agent::transaction::{TransactionWithResult, Common, Job, AdditionalEntity, ExtractEntity, AdditionalEntityKey};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -30,25 +32,10 @@ use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
 static BUILD_BATCH_UNIT: u64 = 50;
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
-// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-// static BASE_URI: &str = "http://localhost:8080";
 
 
 async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<summary::Model> {
   summary::Entity::find().order_by_desc(summary::Column::BlockNumber).one(db).await.unwrap()
-}
-
-async fn get_node_status_always() -> NodeStatus {
-  get_request_always(format!("{BASE_URI}/status")).await
-}
-
-async fn get_block_always(hash: &str) -> Block {
-  get_request_always(format!("{BASE_URI}/block/{hash}")).await
-}
-
-async fn get_tx_always(hash: &str) -> TransactionWithResult {
-  get_request_always(format!("{BASE_URI}/tx/{hash}")).await
 }
 
 async fn get_last_built_or_genesis_block_hash(node_status: &NodeStatus, db: &DatabaseConnection) -> String {
@@ -83,16 +70,15 @@ async fn get_last_built_block(db: &DatabaseConnection) -> Option<block_state::Mo
 
 
 async fn get_tx_states_in_block_hashs(block_hashs: Vec<String>, db: &DatabaseConnection) -> HashMap<String, Vec<tx_state::Model>> {
-  let mut map: HashMap<String, Vec<tx_state::Model>> = HashMap::new();
+
   TxState::find().filter(tx_state::Column::BlockHash.is_in(block_hashs))
                   .order_by_asc(tx_state::Column::EventTime)
-                  .all(db).await.unwrap().into_iter().for_each(|tx| {
-                    match map.get_mut(&tx.block_hash) {
-                      Some(vec) => { vec.push(tx) },
-                      None => { map.insert(tx.block_hash.clone(), vec![tx]); } ,
-                    }
-                  });
-  map
+                  .all(db).await.unwrap()
+                  .into_iter()
+                  .fold(HashMap::new(), |mut acc, tx| {
+                    acc.entry(tx.block_hash.clone()).or_insert_with(Vec::new).push(tx);
+                    acc
+                  })
 }
 
 async fn get_tx_states_by_block_hash(block_hash: String, db: &DatabaseConnection) -> Vec<tx_state::Model> {
@@ -206,7 +192,7 @@ async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summa
 
 async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decimal> {
   let lm_token_id = 20315;
-  let coin_market: LmPrice = get_request_header_always(format!("https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={lm_token_id}"), &api_key).await;
+  let coin_market: LmPrice = ApiService::get_request_header_always(format!("https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id={lm_token_id}"), &api_key).await;
   if coin_market.status.error_code == 0 {
     match coin_market.data.get(&lm_token_id) {
       Some(data) => 
@@ -230,6 +216,7 @@ async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn:
                                                .on_conflict(OnConflict::column(block_state::Column::Hash).do_nothing().to_owned())
                                                .exec(txn).await {
     info!("save_all_block_states err - {err}");
+    // panic!("save_all_block_states err : {err}")
   }
 }
 
@@ -238,7 +225,8 @@ async fn save_all_tx_states(txs: Vec<tx_state::ActiveModel>, txn: &DatabaseTrans
   if let Err(err) = TxState::insert_many(txs)
                                   .on_conflict(OnConflict::column(tx_state::Column::Hash).do_nothing().to_owned())
                                   .exec(txn).await {
-    info!("save_all_tx_states err - {err}");
+    // info!("save_all_tx_states err - {err}");
+    // panic!("save_all_tx_states err : {err}")
   }
 }
 
@@ -247,7 +235,8 @@ async fn save_all_blocks(block_entities: Vec<block_entity::ActiveModel>, db: &Da
   if let Err(err) = BlockEntity::insert_many(block_entities)
                                         .on_conflict(OnConflict::column(block_entity::Column::Hash).do_nothing().to_owned())
                                         .exec(db).await {
-    return err != DbErr::RecordNotInserted;
+    //  panic!("save_all_txs: {err}")
+     return err != DbErr::RecordNotInserted;
   }
   true
 }
@@ -257,6 +246,7 @@ async fn save_all_txs(tx_entities: Vec<tx_entity::ActiveModel>, db: &DatabaseTra
   if let Err(err) = TxEntity::insert_many(tx_entities)
                                             .on_conflict(OnConflict::column(tx_entity::Column::Hash).do_nothing().to_owned())
                                             .exec(db).await {
+    // panic!("save_all_txs: {err}")
     return err != DbErr::RecordNotInserted;
   }
   true
@@ -269,8 +259,10 @@ async fn save_all_nft_txs(nft_tx_opt: Option<AdditionalEntity>, txn: &DatabaseTr
         match nft_tx::Entity::insert_many(vec)
             .on_conflict(OnConflict::column(nft_tx::Column::TxHash).do_nothing().to_owned())
             .exec(txn).await.err() {
-              Some(err) if err != DbErr::RecordNotInserted => {
-                error!("save_all_create_nft_file: {err}");
+              // Some(err) if err != DbErr::RecordNotInserted => {
+              Some(err) => {
+                // panic!("save_all_nft_txs: {err}");
+                // error!("save_all_nft_txs: {err}");
                 return false;
               },
               _ => (),
@@ -288,14 +280,20 @@ async fn firstly_save_all_create_event(create_account_event_opt: Option<Addition
   let txn = db.begin().await.unwrap();
   match create_nft_file_event_opt {
     Some(AdditionalEntity::CreateNftFile(vec)) => {
-      let outer_vec: Vec<Vec<nft_file::ActiveModel>> = vec.into_iter().chunks(10).into_iter().map(|x| x.collect()).collect();
+      println!("{:?}", vec);
+      let outer_vec: Vec<Vec<nft_file::ActiveModel>> = vec.into_iter()
+                                                          .chunks(10)
+                                                          .into_iter()
+                                                          .map(|x| x.collect())
+                                                          .collect();
       for vec in outer_vec {
         match nft_file::Entity::insert_many(vec)
                               .on_conflict(OnConflict::column(nft_file::Column::TokenId).do_nothing().to_owned())
                               .exec(&txn).await.err() {
           Some(err) if err != DbErr::RecordNotInserted => {
+            panic!("create_nft_file_event_opt firstly_save_all_create_event: {err}");
             error!("save_all_create_nft_file: {err}");
-            panic!()
+            // panic!()
           },
           _ => (),
         }
@@ -307,11 +305,12 @@ async fn firstly_save_all_create_event(create_account_event_opt: Option<Addition
   match create_account_event_opt {
     Some(AdditionalEntity::CreateAccount(vec)) => {
       match account_entity::Entity::insert_many(vec)
-                                    .on_conflict(OnConflict::column(account_entity::Column::Address).do_nothing().to_owned())
-                                    .exec(&txn).await.err() {
-        Some(err) if err != DbErr::RecordNotInserted  => {
+      .on_conflict(OnConflict::column(account_entity::Column::Address).do_nothing().to_owned())
+      .exec(&txn).await.err() {
+        Some(err) if err != DbErr::RecordNotInserted => {
+          // println!("{:?}", vec);
+          panic!("create_account_event_opt firstly_save_all_create_event: {err}");
           error!("save_all_create_account: {err}");
-          panic!()
         }
         _ => (),
       }               
@@ -340,6 +339,7 @@ async fn update_all_nft_file_owner(token_id_owner_info: HashMap<String, String>,
     Err(err) => {
       error!("update_all_nft_file_owner err: {err}");
       false
+      // panic!("update_all_nft_file_owner: {err}")
     },
     _ => true
   }
@@ -360,10 +360,16 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
         ) as nv (address, balance)
       where account.address = nv.address;"#);
 
+  // match db.execute(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
+  //   Ok(result) => result.rows_affected(),
+  //   Err(err) => err,
+  // }
+
   match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
     Err(err) => {
       error!("update_all_account_balance_info err: {err}");
-      false
+      // false
+      panic!("update_all_account_balance_info: {err}")
     },
     _ => true
   }
@@ -377,6 +383,7 @@ async fn finish_all_block_states(block_states: Vec<block_state::Model>, db: &Dat
                                         .collect::<Vec<String>>()))
                                         .exec(db).await {
     error!("finish_all_block_states fail : {err}");
+    // panic!("finish_all_block_states: {err}");
     return false;
   }
   true
@@ -396,50 +403,48 @@ async fn remove_firstly_saved_create_events(addresses: Vec<String>, token_ids: V
   }
 }
 
-
 fn extract_updated_nft_owners(nft_owner_info: &HashMap<String, String>, transfered_token_id: HashSet<String>) -> HashMap<String, String> {
-  let mut this_time_updated_nft_owners = HashMap::new();
-  nft_owner_info.iter().filter(|(k,_)| transfered_token_id.contains(*k)).for_each(|(k, v)| {
-    this_time_updated_nft_owners.insert(k.clone(), v.clone());
-  });
-  this_time_updated_nft_owners
+  nft_owner_info.iter()
+    .filter(|(k, _)| transfered_token_id.contains(*k))
+    .map(|(k, v)| (k.clone(), v.clone()))
+    .collect()
 }
 
 fn extract_updated_balance_accounts(account_balance_info: &HashMap<String, BigDecimal>, balanced_updated_accounts: HashSet<String>) -> HashMap<String, BigDecimal> {
-  let mut this_time_updated_balance_accounts = HashMap::new();
-  account_balance_info.iter().filter(|(k, _)|  balanced_updated_accounts.contains(*k)).for_each(|(k, v)| {
-    this_time_updated_balance_accounts.insert(k.clone(), v.clone());
-  });
-  this_time_updated_balance_accounts
+  account_balance_info.iter()
+    .filter(|(k, _)| balanced_updated_accounts.contains(*k))
+    .map(|(k, v)| (k.clone(), v.clone()))
+    .collect()
 }
 
 fn extract_token_ids(create_nft_file_opt: Option<&AdditionalEntity>) -> Vec<String> {
-  let mut token_ids = vec![];
-  create_nft_file_opt.map(|x| match x {
-    AdditionalEntity::CreateNftFile(vec) => vec.iter().for_each(|x| token_ids.push(x.token_id.clone().unwrap())),
-    _ => (),
-  });
-  token_ids
+  create_nft_file_opt.and_then(|x| match x {
+    AdditionalEntity::CreateNftFile(vec) => Some(vec.iter()
+                                                                        .map(|file| file.token_id.clone().unwrap())
+                                                                        .collect()),
+    _ => None
+  }).unwrap_or_else(Vec::new)
 }
 
 fn extract_addresses(create_account_opt: Option<&AdditionalEntity>) -> Vec<String> {
-  let mut addresses = vec![];
-  create_account_opt.map(|x| match x {
-    AdditionalEntity::CreateAccount(vec) => vec.iter().for_each(|x| addresses.push(x.address.clone().unwrap())),
-    _ => (),
-  });
-  addresses
+  create_account_opt.and_then(|x| match x {
+    AdditionalEntity::CreateAccount(vec) => Some(vec.iter()
+                                                                        .map(|account| account.address.clone().unwrap())
+                                                                        .collect()),
+    _ => None
+  }).unwrap_or_else(Vec::new)
 }
-
 
 async fn summary_loop(db: DatabaseConnection, api_key: String) {
   tokio::spawn(async move {
     loop {
       let last_summary_opt = get_last_saved_summary(&db).await;
-      match (get_last_built_block(&db).await, 
-             get_lm_price(&db, api_key.clone()).await, 
-             get_total_accounts(&db).await,
-             get_newly_accumumlated_tx_json_size(&db, last_summary_opt).await) 
+      match (
+              get_last_built_block(&db).await, 
+              get_lm_price(&db, api_key.clone()).await, 
+              get_total_accounts(&db).await,
+              get_newly_accumumlated_tx_json_size(&db, last_summary_opt).await
+            ) 
       {
         (Some(last_built_block), Some(lm_price), Some(total_accounts), Some(total_tx_size)) => {
           let summary = summary::Model::from(last_built_block.number, lm_price, total_accounts, total_tx_size);
@@ -468,13 +473,15 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
   let mut txs = vec![];
   
   while is_conitnue {
-    let block = get_block_always(&curr_block_hash.to_owned()).await;
+    let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await;
+    println!("block number: {}, hash: {}", block.header.number, curr_block_hash);
+
     let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
     block_states.push(block_state);
     
     for tx_hash in &block.transaction_hashes {
-      let tx_result = get_tx_always(tx_hash).await;
-      let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result);
+      let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
+      let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
       txs.push(tx_state);
     }
     
@@ -497,10 +504,17 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
 }
 
 
-async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_info: HashMap<String, BigDecimal>, nft_owner_info: &mut HashMap<String, String>) -> HashMap<String, BigDecimal>{
+async fn build_saved_state_proc 
+(
+  db: &DatabaseConnection, 
+  mut account_balance_info: HashMap<String, BigDecimal>,
+  nft_owner_info: &mut HashMap<String, String>
+) 
+  -> HashMap<String, BigDecimal> 
+{
   info!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
-    let mut clone_account_balance_info = account_balance_info.clone();
+    let mut cloned_account_balance_info = account_balance_info.clone();
     let mut tx_entities = vec![];
     let mut block_entities = vec![];
     let mut additional_entity_store = HashMap::new();
@@ -515,15 +529,18 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
       block_entities.push(block_entity::Model::from(&block, block_state.hash.clone()));
       
       if let Some(tx_states_in_block) = txs_in_block.remove(&block_state.hash) {
-        for tx_state in tx_states_in_block {
-          let tx_res = parse_from_json_str::<TransactionWithResult>(tx_state.json.as_str());
-          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut clone_account_balance_info));
+        let iter = 
+          tx_states_in_block.iter().map(|state| (state, parse_from_json_str::<TransactionWithResult>(state.json.as_str())))
+                            .sorted_by_key(|(_, tx_res)| tx_res.signed_tx.value.created_at());
+
+        for (tx_state, tx_res) in iter {
+          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut cloned_account_balance_info).await);
           transfered_nft_token_ids.extend(tx_res.update_nft_owner_info(nft_owner_info));
           
           let tx = &tx_res.signed_tx.value;
-          let tx_entity = tx.from(tx_state.hash, tx_res.signed_tx.sig.account, 
-                                               tx_state.block_hash, block_state.number, 
-                                               tx_state.json, tx_res.result);
+          let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account, 
+                                              tx_state.block_hash.clone(), block_state.number, 
+                                              tx_state.json.clone(), tx_res.result);
           tx.extract_additional_entity(&tx_entity, &mut additional_entity_store).await;
           tx_entities.push(tx_entity);
         }
@@ -531,7 +548,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
     }
 
     let this_time_updated_nft_owners = extract_updated_nft_owners(&nft_owner_info, transfered_nft_token_ids);
-    let this_time_updated_balance_accounts = extract_updated_balance_accounts(&clone_account_balance_info, balance_updated_accounts);
+    let this_time_updated_balance_accounts = extract_updated_balance_accounts(&cloned_account_balance_info, balance_updated_accounts);
     let addresses = extract_addresses(additional_entity_store.get(&AdditionalEntityKey::CreateAccount));
     let token_ids = extract_token_ids(additional_entity_store.get(&AdditionalEntityKey::CreateNftFile));
     
@@ -557,10 +574,10 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
 
     if let Err(err) = save_res {
       remove_firstly_saved_create_events(addresses, token_ids, &db).await;
-      error!("save transaction err: {err}");
-      // panic!("ended - remove_firstly_saved_create_events");
+      error!("save transaction process err: {err}");
+      panic!("save transaction process err: {err}");
     } else {
-      account_balance_info = clone_account_balance_info
+      account_balance_info = cloned_account_balance_info
     }
   } 
   info!("build_saved_state_proc ended");
@@ -575,19 +592,12 @@ async fn block_check_loop(db: DatabaseConnection) {
     account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
     loop {
       info!("block_check_loop start");
-      let ref node_status = get_node_status_always().await;
+      
+      // let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
+      let ref node_status = ApiService::get_node_status_always().await;
       let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      // let target_hash = get_last_saved_or_genesis_block_hash(node_status, &db).await;
       save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
-      // 테스트 전용 로직.
-      // let ref node_status = get_node_status_always().await;
-      // let last_saved_block = get_last_saved_block(&db).await.unwrap();
-      // let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      // println!("save_diff_state_proc started");
-      // save_diff_state_proc(last_saved_block.hash, target_hash, &db).await;
-      // println!("save_diff_state_proc ended");
-
       account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");

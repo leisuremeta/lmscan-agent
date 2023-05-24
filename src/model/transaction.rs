@@ -1,14 +1,16 @@
 use bigdecimal::BigDecimal;
-use bigdecimal::num_bigint::BigInt;
+use log::error;
 use sea_orm::Set;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use core::panic;
 use std::collections::{HashSet, HashMap};
 use std::fmt::Debug;
+use std::fs::File;
+use std::io::Write;
 extern crate chrono;
-
-
-use crate::library::common::{as_timestamp, now, get_request_until};
+use crate::service::api_service::ApiService;
+use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
 use crate::{nft_file, nft_tx, account_entity};
 use crate::tx_entity::{ActiveModel as TxModel, self};
 
@@ -17,7 +19,7 @@ impl TransactionWithResult {
   pub fn from(json: &str) -> Option<TransactionWithResult>{
     match serde_json::from_str::<TransactionWithResult>(json) {
       Ok(tx_res) => Some(tx_res),
-      Err(err) => {println!("{err}"); panic!()},
+      Err(err) => panic!("{err}"),
     }
   }
 }
@@ -39,6 +41,8 @@ pub enum TransactionResult {
   EntrustFungibleTokenResult(EntrustFungibleTokenResult),
   #[serde(rename = "ExecuteRewardResult")]
   ExecuteRewardResult(ExecuteRewardResult),
+  #[serde(rename = "ExecuteOwnershipRewardResult")]
+  ExecuteOwnershipRewardResult(ExecuteOwnershipRewardResult),
   #[serde(rename = "VoteSimpleAgendaResult")]
   VoteSimpleAgendaResult(VoteSimpleAgendaResult),
 }
@@ -50,25 +54,32 @@ pub struct AddPublicKeySummariesResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BurnFungibleTokenResult {
-  #[serde(rename = "outputAmount")]
+  #[serde(rename = "outputAmount", deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub output_amount: BigDecimal
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntrustFungibleTokenResult {
-  #[serde(rename = "remainder")]
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub remainder: BigDecimal
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteRewardResult {
-  #[serde(rename = "outputs")]
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExecuteOwnershipRewardResult {
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
+  pub outputs: HashMap<String, BigDecimal>
+}
+
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VoteSimpleAgendaResult {
-  #[serde(rename = "votingAmount")]
+  #[serde(rename = "votingAmount", deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub voting_amount: BigDecimal
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -116,6 +127,8 @@ pub enum RewardTx {
   OfferReward(OfferReward),
   #[serde(rename = "ExecuteReward")]
   ExecuteReward(ExecuteReward),
+  #[serde(rename = "ExecuteOwnershipReward")]
+  ExecuteOwnershipReward(ExecuteOwnershipReward),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -148,6 +161,20 @@ pub struct ExecuteReward {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExecuteOwnershipReward {
+  #[serde(rename = "networkId")]
+  pub network_id: i64,
+  #[serde(rename = "createdAt")]
+  pub created_at: String,
+  #[serde(rename = "tokenDefinitionId")]
+  pub definition_id: String,
+  #[serde(rename = "inputs")]
+  pub inputs: Vec<String>,
+  #[serde(rename = "targets")]
+  pub targets: Vec<String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OfferReward {
   #[serde(rename = "networkId")]
   pub network_id: i64,
@@ -156,6 +183,7 @@ pub struct OfferReward {
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
   pub inputs: Vec<String>,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
 }
@@ -243,6 +271,7 @@ pub struct EntrustFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
   pub inputs: Vec<String>,
   pub to: String,
@@ -256,6 +285,7 @@ pub struct BurnFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
   pub inputs: Vec<String>,
 }
@@ -284,6 +314,7 @@ pub struct TransferFungibleToken {
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
   pub inputs: Vec<String>,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
 }
@@ -314,6 +345,7 @@ pub struct MintFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
 }
 
@@ -394,6 +426,7 @@ pub struct DisposeEntrustedFungibleToken {
   #[serde(rename = "definitionId")]
   pub definition_id: String,
   pub inputs: Vec<String>,
+  #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
 }
 
@@ -505,9 +538,9 @@ pub struct VoteSimpleAgenda {
   #[serde(rename = "createdAt")]
   pub created_at: String,
   #[serde(rename = "agendaTxHash")]
-  agenda_tx_hash: String,
+  pub agenda_tx_hash: String,
   #[serde(rename = "selectedOption")]
-  selected_option: String,
+  pub selected_option: String,
 }
 
 pub trait Common {
@@ -587,7 +620,7 @@ impl Common for OfferReward {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_accounts: Vec<String> = self.outputs.keys().map(|s| s.trim().to_string()).collect();
+    let to_accounts: Vec<String> = self.outputs.keys().map(|s| s.to_string()).collect();
     let output_vals = self.outputs.iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
       hash: Set(hash),
@@ -600,7 +633,7 @@ impl Common for OfferReward {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(None),
+      input_hashs: Set(Some(self.inputs.clone())),
       output_vals: Set(Some(output_vals)),
       json: Set(json),
     }
@@ -612,18 +645,17 @@ impl Common for ExecuteReward {
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
 
-    // let mut to_accounts = vec![];
     let (to_accounts, output_vals) = match tx_res_opt {
         Option::Some(tx_res) => 
           match tx_res {
             TransactionResult::ExecuteRewardResult(res) => {
               (
-                res.outputs.keys().into_iter().map(|to| to.trim().to_string()).collect(),
+                res.outputs.keys().into_iter().map(|to| to.to_string()).collect(),
                 Some(res.outputs.into_iter().map(|(k, v)| {k + "/" + &v.to_string()}).collect())
               )
             }
             _ => (vec![], None),
-        },
+         },
         None => (vec![], None),
     };
 
@@ -645,6 +677,43 @@ impl Common for ExecuteReward {
   }
 }
 
+impl Common for ExecuteOwnershipReward {
+  fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
+  fn network_id(&self) -> i64 { self.network_id }
+
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+    let (to_accounts, output_vals) = match tx_res_opt {
+      Option::Some(tx_res) => 
+        match tx_res {
+          TransactionResult::ExecuteOwnershipRewardResult(res) => {
+            (
+              res.outputs.keys().into_iter().map(|to| to.to_string()).collect(),
+              Some(res.outputs.into_iter().map(|(k, v)| {k + "/" + &v.to_string()}).collect())
+            )
+          }
+          _ => (vec![], None),
+      },
+      None => (vec![], None),
+    };
+
+    TxModel {
+      hash: Set(hash),
+      tx_type: Set("Reward".to_string()),
+      token_type: Set("LM".to_string()),
+      sub_type: Set("ExecuteReward".to_string()),
+      from_addr: Set(from_account),
+      to_addr: Set(to_accounts),
+      block_hash: Set(block_hash),
+      block_number: Set(block_number),
+      event_time: Set(self.created_at()),
+      created_at: Set(now()),
+      input_hashs: Set(Some(self.inputs.clone())),
+      output_vals: Set(output_vals),
+      json: Set(json),
+    }
+  }
+}
+
 impl Common for RewardTx {
   fn created_at(&self) -> i64 {
     match self {
@@ -653,6 +722,7 @@ impl Common for RewardTx {
       RewardTx::UpdateDao(t) => t.created_at(),
       RewardTx::OfferReward(t) => t.created_at(),
       RewardTx::ExecuteReward(t) => t.created_at(),
+      RewardTx::ExecuteOwnershipReward(t) => t.created_at(),
     }
   }
   fn network_id(&self) -> i64 {
@@ -662,6 +732,7 @@ impl Common for RewardTx {
       RewardTx::UpdateDao(t) => t.network_id,
       RewardTx::OfferReward(t) => t.network_id,
       RewardTx::ExecuteReward(t) => t.network_id,
+      RewardTx::ExecuteOwnershipReward(t) => t.network_id,
     }
   }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
@@ -671,6 +742,7 @@ impl Common for RewardTx {
       RewardTx::UpdateDao(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       RewardTx::OfferReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       RewardTx::ExecuteReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      RewardTx::ExecuteOwnershipReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
     }
   }
 }
@@ -686,13 +758,13 @@ impl Common for EntrustNft {
       token_type: Set("LM".to_string()),
       sub_type: Set("EntrustNft".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.to.trim().to_owned()]),
+      to_addr: Set(vec![self.to.to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
       input_hashs: Set(Some(vec![self.input.clone()])),
-      output_vals: Set(Some(vec![self.to.trim().to_owned() + "/" + &self.token_id])),
+      output_vals: Set(Some(vec![self.to.to_owned() + "/" + &self.token_id])),
       json: Set(json),
     }
   }
@@ -708,7 +780,7 @@ impl Common for EntrustFungibleToken {
       token_type: Set("LM".to_string()),
       sub_type: Set("EntrustFungibleToken".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.to.trim().to_owned()]),
+      to_addr: Set(vec![self.to.to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -774,7 +846,7 @@ impl Common for TransferFungibleToken {
         Option::Some(tx_res) => 
           match tx_res {
             TransactionResult::ExecuteRewardResult(res) => {
-              to_accounts = res.outputs.keys().into_iter().map(|addr| addr.trim().to_owned()).collect();
+              to_accounts = res.outputs.keys().into_iter().map(|addr| addr.to_owned()).collect();
               Some(res.outputs.into_iter().map(|(k, v)| k + "/" + &v.to_string()).collect())
             }
             _ => None,
@@ -804,7 +876,7 @@ impl Common for MintNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_addr = self.output.trim().to_owned();
+    let to_addr = self.output.to_owned();
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -872,8 +944,8 @@ impl Common for DisposeEntrustedNft {
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
     let to_account = match &self.output {
-      Option::Some(value) => value.trim().to_owned(),
-        None => String::from(""),
+      Option::Some(value) => value.to_owned(),
+      None => String::from(""),
     };
 
     TxModel {
@@ -887,7 +959,7 @@ impl Common for DisposeEntrustedNft {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(None),
+      input_hashs: Set(Some(vec![self.input.clone()])),
       output_vals: Set(Some(vec![to_account+"/"+&self.token_id])),
       json: Set(json),
     }
@@ -898,7 +970,7 @@ impl Common for DisposeEntrustedFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let to_accounts = (&self.outputs).keys().map(|addr| addr.trim().to_owned()).collect();
+    let to_accounts = (&self.outputs).keys().map(|addr| addr.to_owned()).collect();
     let output_vals: Vec<String> = (&self.outputs).into_iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
       hash: Set(hash),
@@ -1000,7 +1072,7 @@ impl Common for AddPublicKeySummaries {
       token_type: Set("LM".to_string()),
       sub_type: Set("AddPublicKeySummaries".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.account.trim().to_owned()]),
+      to_addr: Set(vec![self.account.to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1022,7 +1094,7 @@ impl Common for CreateAccount {
       token_type: Set("LM".to_string()),
       sub_type: Set("CreateAccount".to_string()),
       from_addr: Set(from_account),
-      to_addr: Set(vec![self.account.trim().to_owned()]),
+      to_addr: Set(vec![self.account.to_owned()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1044,7 +1116,7 @@ impl Common for UpdateAccount {
       token_type: Set("LM".to_string()),
       from_addr: Set(from_account),
       sub_type: Set("UpdateAccount".to_string()),
-      to_addr: Set(vec![self.account.trim().to_owned().clone()]),
+      to_addr: Set(vec![self.account.to_owned().clone()]),
       block_hash: Set(block_hash),
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
@@ -1241,7 +1313,7 @@ impl Common for Transaction {
   }
 
   fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let from_account = from_account.trim().to_owned();
+    let from_account = from_account.to_owned();
     match self {
       Transaction::RewardTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
       Transaction::TokenTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
@@ -1274,11 +1346,14 @@ pub struct NftMetaInfo {
 }
 
 
+
+#[async_trait]
 pub trait Job {
-  fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String>;
+  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
 }
 
+#[async_trait]
 impl Job for TransactionWithResult {
   fn update_nft_owner_info(&self, info: &mut HashMap<String, String>) -> HashSet<String> {
     let mut updated_accouts = HashSet::new();
@@ -1295,162 +1370,160 @@ impl Job for TransactionWithResult {
     updated_accouts
   }
 
-  fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String> {
-    let mut updated_accouts = HashSet::new();
-    let from_account = &self.signed_tx.sig.account;
-    match &self.signed_tx.value {
-        Transaction::RewardTx(tx) => match tx {
-          RewardTx::OfferReward(t) => {
-            // withdrawl from_account
-            let sum: BigDecimal = t.outputs.values().sum();
-            match info.get_mut(from_account) {
-              Option::Some(value) => *value -= sum,
-              None => {
-                info.insert(from_account.to_owned(), -sum);
-              },
-            }
-            updated_accouts.insert(from_account.clone());
+  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String> {
+    fn withdraw_from_outputs<F>(
+      outputs_in_input_tx: HashMap<String, BigDecimal>,
+      info: &mut HashMap<String, BigDecimal>,
+      from_account: &String,
+      update_balance: F,
+    ) where 
+      F: Fn(&mut BigDecimal, &BigDecimal)
+    {
+      outputs_in_input_tx
+        .get(from_account)
+        .ok_or_else(|| format!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다."))
+        .and_then(|deposit_val| {
+          info.get_mut(from_account)
+              .ok_or_else(|| format!("'{from_account}'의 기존 balance 가 존재하지 않습니다."))
+              .map(|balance| update_balance(balance, deposit_val))
+        })
+        .unwrap_or_else(|err| panic!("{err}"));
+    }
 
-            // deposit to_account
-            for (to_account, new_value) in t.outputs.iter() {
-              match info.get_mut(to_account) {
-                Option::Some(value) => *value += new_value,
-                None => {
-                  info.insert(to_account.to_owned(), new_value.clone());
-                },
-              };
-              updated_accouts.insert(to_account.clone());
-            };
-          },
-        RewardTx::ExecuteReward(t) => {
-          self.result.as_ref().map(|res| match res {
-            TransactionResult::ExecuteRewardResult(res) => {
-              // withdrawl from_account
-              let sum: BigDecimal = res.outputs.values().sum();
-              match info.get_mut(from_account) {
-                Option::Some(value) => *value -= sum,
-                None => {
-                  info.insert(from_account.to_owned(), -sum);
-                },
-              }
-              updated_accouts.insert(from_account.clone());
+    // BurnFungibleToken 의 경우에는 해당이 안됨.
+    fn deposit_to_accounts(
+      outputs: &HashMap<String, BigDecimal>,
+      info: &mut HashMap<String, BigDecimal>,
+    ) {
+      outputs.iter().for_each(|(to_account, amount)| {
+        *info.entry(to_account.clone()).or_insert(BigDecimal::from(0)) += amount;
+      })
+    }
 
-              // deposit to_account
-              for (to_account, new_value) in res.outputs.iter() {
-                match info.get_mut(to_account) {
-                  Option::Some(value) => *value += new_value,
-                  None => {
-                    info.insert(to_account.to_owned(), new_value.clone());
-                  },
-                };
-                updated_accouts.insert(to_account.clone());
-              };
+    fn extract_outputs_from_input_tx_for_withdraw(input_tx_with_res: TransactionWithResult, from_account: &String)
+      -> HashMap<String, BigDecimal> 
+    {
+      // withdraw from_account
+      // b: account's balance
+      // d: deposit amount
+      match input_tx_with_res.signed_tx.value {
+        Transaction::RewardTx(rw) => match rw {
+          RewardTx::OfferReward(t) => t.outputs,
+          RewardTx::ExecuteReward(_) => 
+            match input_tx_with_res.result.unwrap() {
+              TransactionResult::ExecuteRewardResult(res) => res.outputs,
+              _ => panic!("invalid ExecuteRewardResult"),
             },
-            _ => (),
-          });
+          RewardTx::ExecuteOwnershipReward(_) => 
+            match input_tx_with_res.result.unwrap() {
+              TransactionResult::ExecuteOwnershipRewardResult(res) => res.outputs,
+              _ => panic!("invalid ExecuteOwnershipRewardResult")
+            },
+          _ => panic!(),
         },
-        _ => (),
+        Transaction::TokenTx(tk) => match tk {
+          TokenTx::MintFungibleToken(t) => t.outputs,
+          TokenTx::TransferFungibleToken(t) => t.outputs,
+          TokenTx::DisposeEntrustedFungibleToken(t) => t.outputs,
+          TokenTx::BurnFungibleToken(_) => {
+            let output_amount = match input_tx_with_res.result.unwrap() {
+              TransactionResult::BurnFungibleTokenResult(res) => res.output_amount,
+              _ => panic!("invalid ExecuteOwnershipRewardResult")
+            };
+            HashMap::from([(from_account.clone(), output_amount)])
+          },
+          TokenTx::EntrustFungibleToken(_) => {
+            let remainder = match input_tx_with_res.result.unwrap() {
+              TransactionResult::EntrustFungibleTokenResult(res) => res.remainder,
+              _ => panic!("invalid EntrustFungibleTokenResult")
+            };
+            HashMap::from([(from_account.clone(), remainder)])
+          },
+          _ => panic!(),
+        },
+        _ => panic!(),
+      }
+    }
+
+    let from_account = &self.signed_tx.sig.account;
+    // extract transaction outputs and input hashs
+    let latest_fungible_tx_opt = match self.signed_tx.value.clone() {
+      Transaction::RewardTx(tx) => match tx {
+        RewardTx::OfferReward(t) =>   //
+          Some((Some(t.outputs), t.inputs)),
+        RewardTx::ExecuteOwnershipReward(t) => 
+          match self.result.clone().unwrap() {
+            TransactionResult::ExecuteOwnershipRewardResult(res) =>
+              Some((Some(res.outputs), t.inputs)),
+            _ => None,
+          },
+        RewardTx::ExecuteReward(_) => 
+          match self.result.clone().unwrap() {
+            TransactionResult::ExecuteRewardResult(res) => 
+              Some((Some(res.outputs), vec![])),
+            _ => None,
+          },
+        _ => None,
       },
       Transaction::TokenTx(tx) => match tx {
-        TokenTx::EntrustFungibleToken(t) => {
-          // withdrawl from_account
-          let sum: BigDecimal = t.amount.clone();
-          match info.get_mut(from_account) {
-            Option::Some(value) => *value -= sum,
-            None => {
-              info.insert(from_account.clone(), -sum);
-            },
-          }
-          updated_accouts.insert(from_account.clone());
-
-          // deposit to_account
-          match info.get_mut(t.to.as_str()) {
-            Option::Some(value) => *value += t.amount.clone(),
-            None => {
-              info.insert(t.to.clone(), t.amount.clone());
-            },
+        TokenTx::TransferFungibleToken(t) =>  //
+          Some((Some(t.outputs), t.inputs)),
+        TokenTx::MintFungibleToken(t) =>   //
+          Some((Some(t.outputs), vec![])), 
+        TokenTx::DisposeEntrustedFungibleToken(t) =>  //
+          Some((Some(t.outputs), t.inputs)),  
+        TokenTx::EntrustFungibleToken(t) =>  {
+          let remainder = match (&self.result).as_ref().unwrap() {
+            TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),
+            _ => panic!("invalid BurnFungibleTokenResult")
           };
-          updated_accouts.insert(t.to.clone());
-        },
-        TokenTx::TransferFungibleToken(t) => {
-          // withdrawl from_account
-          let sum: BigDecimal = t.outputs.values().sum();
-          match info.get_mut(from_account) {
-            Option::Some(value) => *value -= sum,
-            None => {
-              info.insert(from_account.to_owned(), -sum);
-            },
-          }
-          updated_accouts.insert(from_account.clone());
-
-          // deposit to_account
-          for (to_account, new_value) in t.outputs.iter() {
-            match info.get_mut(to_account) {
-              Option::Some(value) => *value += new_value,
-              None => {
-                info.insert(to_account.to_owned(), new_value.clone());
-              },
-            };
-            updated_accouts.insert(to_account.clone());
-          };
-        },
-        TokenTx::MintFungibleToken(t) => {
-          // withdrawl from_account
-          let sum: BigDecimal = t.outputs.values().sum();
-          match info.get_mut(from_account) {
-            Option::Some(value) => *value -= sum,
-            None => {
-              info.insert(from_account.to_owned(), -sum);
-            },
-          }
-          updated_accouts.insert(from_account.clone());
-
-          // deposit to_account
-          for (to_account, new_value) in t.outputs.iter() {
-            match info.get_mut(to_account) {
-              Option::Some(value) => *value += new_value,
-              None => {
-                info.insert(to_account.to_owned(), new_value.clone());
-              },
-            };
-            updated_accouts.insert(to_account.clone());
-          };
-        },  
-        TokenTx::DisposeEntrustedFungibleToken(t) => {
-          // withdrawl from_account
-          let sum: BigDecimal = t.outputs.values().sum();
-          match info.get_mut(from_account) {
-            Option::Some(value) => *value -= sum,
-            None => {
-              info.insert(from_account.to_owned(), -sum);
-            },
-          }
-          updated_accouts.insert(from_account.clone());
-
-          // deposit to_account
-          for (to_account, new_value) in t.outputs.iter() {
-            match info.get_mut(to_account) {
-              Option::Some(value) => *value += new_value,
-              None => {
-                info.insert(to_account.to_owned(), new_value.clone());
-              },
-            };
-            updated_accouts.insert(to_account.clone());
-          };
-        },  
+          info.get_mut(from_account).map(|balance| *balance += remainder);
+          Some((None, t.inputs))
+        }
         TokenTx::BurnFungibleToken(t) => {
-          match info.get_mut(from_account) {
-            Option::Some(value) => *value -= t.amount.clone(),
-            None => { 
-              info.insert(from_account.clone(), BigDecimal::from(0));
-            },
-          }
+          let output_amount = match (&self.result).as_ref().unwrap() {
+            TransactionResult::BurnFungibleTokenResult(res) => res.output_amount.clone(),
+            _ => panic!("invalid BurnFungibleTokenResult")
+          };
+          info.get_mut(from_account).map(|balance| *balance += output_amount);
+          Some((None, t.inputs))
         },
-        _ => (),
+        _ => None,
       },
-      _ => ()
+      _ => None
     };
-    updated_accouts
+
+    let mut updated_accounts = HashSet::new();
+    if let Some((outputs_in_latest_opt, inputs_txs)) = latest_fungible_tx_opt {
+      updated_accounts.insert(from_account.clone());
+      
+      // deposits to latest txs's outputs
+      outputs_in_latest_opt.map(|outputs_in_latest| {
+        deposit_to_accounts(&outputs_in_latest, info);
+        updated_accounts.extend(outputs_in_latest.keys().cloned().collect::<HashSet<String>>());
+      });
+
+      for input_hash in inputs_txs.iter() {
+        let input_tx_res = ApiService::get_tx_always(input_hash).await;
+        let outputs_in_input_tx = extract_outputs_from_input_tx_for_withdraw(input_tx_res, from_account);
+        
+        // withdraw_from_outputs(outputs, info, from_account, update_balance_fn);
+        match outputs_in_input_tx
+          .get(from_account)
+          .ok_or_else(|| println!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다. Latest_tx:\n{:?}", 
+                                    serde_json::to_string(&self).unwrap().replace("\\", "").replace("\n", "")))
+          .and_then(|withdraw_val| {
+            info.get_mut(from_account)
+                .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx:\n{:?}", 
+                                          serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
+                .map(|balance| *balance -= withdraw_val)
+          }) { 
+            Ok(_) => {}
+            Err(_) => {}
+          } 
+      }
+    };
+    updated_accounts
   }
 }
 
@@ -1502,7 +1575,7 @@ impl ExtractEntity for Transaction {
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::MintNft(tx) => {
-          let nft_meta_info_opt = get_request_until(tx.data_url.clone(), 5).await;
+          let nft_meta_info_opt = ApiService::get_request_until(tx.data_url.clone(), 5).await;
           let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
           match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
             Some(v) => match v { 
@@ -1560,7 +1633,7 @@ impl ExtractEntity for Transaction {
             None => { store.insert(AdditionalEntityKey::NftTx, AdditionalEntity::NftTx(vec![nft_tx])); },
           };
         },
-        TokenTx::BurnNft(tx) => {
+        TokenTx::BurnNft(_) => {
           // TODO: BurnNft 트랜잭션에서 token_id 추가 되어야 될듯.
           // let nft_tx = nft_tx::Model::from(tx, tx_entity);
           // match store.get_mut(&AdditionalEntity::NftTx) {

@@ -20,11 +20,11 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-  pub fn from(hash: &str, block_hash: &str, tx_res: &TransactionWithResult) -> ActiveModel {
+  pub fn from(hash: &str, block_hash: &str, tx_res: &TransactionWithResult, json: String) -> ActiveModel {
     ActiveModel {
       hash: Set(hash.to_owned()),
       block_hash: Set(block_hash.to_owned()),
-      json: Set(serde_json::to_string(tx_res).unwrap()),
+      json: Set(json),
       event_time: Set(tx_res.signed_tx.value.created_at()),
       created_at: Set(now()),
     }
