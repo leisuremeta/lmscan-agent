@@ -2,7 +2,7 @@ use std::{fs::File, path::Path, io::Write, collections::{HashMap, HashSet}};
 
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
-use lmscan_agent::{entity::account_entity, service::api_service::ApiService, block_state, library::common::parse_from_json_str, transaction::{TransactionWithResult, Job, Common}, block_entity, tx_state};
+use lmscan_agent::{entity::account_entity, service::api_service::ApiService, block_state, library::common::parse_from_json_str, transaction::{TransactionWithResult, Job, Common}, block_entity, tx_state, block::Block};
 use dotenvy::{dotenv, var};
 use lmscan_agent::library::common::db_connn;
 use sea_orm::{*, sea_query::Expr};
@@ -14,7 +14,7 @@ async fn balance_local_build() {
   let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
   let ref db = db_connn(database_url).await;
 
-  let mut output_file = File::create(Path::new("balance_local_build.txt"))
+  let mut output_file = File::create(Path::new("prod_balance_local_build.txt"))
                                     // .append(true)
                                     // .open("")
                                     .expect("cannot open output file");
@@ -29,6 +29,7 @@ async fn balance_local_build() {
     let scan_addr = &scan_account.address;
     if let Some(scan_balance) = result.get(scan_addr) {
       // println!("{count} - scan {key} - {scan_balance}");
+      // 8081
       match ApiService::get_account_balance(scan_addr).await {
         Ok(block_account_balance_opt) => {
           if block_account_balance_opt.is_none() {
@@ -57,8 +58,8 @@ async fn balance_local_build() {
 
 
 async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_info: HashMap<String, BigDecimal>, nft_owner_info: &mut HashMap<String, String>) -> HashMap<String, BigDecimal>{
-  
-  while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
+  let mut block_num = 0;
+  while let Some(block_states) = get_block_states_after_order_by_asc_limit(db, block_num).await  {
     let mut cloned_account_balance_info = account_balance_info.clone();
     let mut block_entities = vec![];
     let mut balance_updated_accounts = HashSet::new();
@@ -67,7 +68,8 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
     let mut txs_in_block = get_tx_states_in_block_hashs(block_hashs, db).await;
 
     for block_state in block_states.iter() {
-      let block = parse_from_json_str(block_state.json.as_str());
+      let block: Block = parse_from_json_str(block_state.json.as_str());
+      block_num = block.header.number;
       block_entities.push(block_entity::Model::from(&block, block_state.hash.clone()));
       println!("{}", block.header.number);
       if let Some(tx_states_in_block) = txs_in_block.remove(&block_state.hash) {
@@ -86,18 +88,19 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
     // let this_time_updated_balance_accounts = extract_updated_balance_accounts(&cloned_account_balance_info, balance_updated_accounts);
     // let addresses = extract_addresses(additional_entity_store.get(&AdditionalEntityKey::CreateAccount));
     // let token_ids = extract_token_ids(additional_entity_store.get(&AdditionalEntityKey::CreateNftFile));
-    match finish_all_block_states(block_states, db).await {
-      true => account_balance_info = cloned_account_balance_info,
-      false => panic!("finish_all_block_states error"),
-    }
+    account_balance_info = cloned_account_balance_info;
+    // match finish_all_block_states(block_states, db).await {
+    //   true => account_balance_info = cloned_account_balance_info,
+    //   false => panic!("finish_all_block_states error"),
+    // }
   } 
   account_balance_info
 }
 
 
-async fn get_block_states_not_built_order_by_asc_limit(db: &DatabaseConnection) -> Option<Vec<block_state::Model>> {
+async fn get_block_states_after_order_by_asc_limit(db: &DatabaseConnection, num: i64) -> Option<Vec<block_state::Model>> {
   block_state::Entity::find()
-                      .filter(block_state::Column::IsBuild.eq(false))
+                      .filter(block_state::Column::Number.gt(num))
                       .order_by_asc(block_state::Column::Number)
                       .paginate(db, BUILD_BATCH_UNIT).fetch_and_next().await.unwrap()
 }
@@ -124,6 +127,7 @@ async fn finish_all_block_states(block_states: Vec<block_state::Model>, db: &Dat
                                         .filter(block_state::Column::Hash.is_in(block_states.iter().map(|b| b.hash.clone())
                                         .collect::<Vec<String>>()))
                                         .exec(db).await {
+    println!("finish_all_block_states fail : {err}");
     return false;
   }
   true

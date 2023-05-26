@@ -19,7 +19,7 @@ impl TransactionWithResult {
   pub fn from(json: &str) -> Option<TransactionWithResult>{
     match serde_json::from_str::<TransactionWithResult>(json) {
       Ok(tx_res) => Some(tx_res),
-      Err(err) => panic!("{err}"),
+      Err(err) => panic!("TransactionWithResult encode err: {err}"),
     }
   }
 }
@@ -1516,7 +1516,7 @@ impl Job for TransactionWithResult {
             info.get_mut(from_account)
                 .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx:\n{:?}", 
                                           serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
-                .map(|balance| *balance -= withdraw_val)
+                .map(|current_balance| *current_balance -= withdraw_val)
           }) { 
             Ok(_) => {}
             Err(_) => {}

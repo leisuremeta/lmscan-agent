@@ -55,23 +55,27 @@ async fn balance_build_history() {
 
   let mut balance_info = HashMap::new();
   let send_tx_res = tx_results.clone().into_iter()
-            .filter(|(_, tx_res)| tx_res.signed_tx.sig.account.eq(account_address))
-            .collect::<HashMap<String, TransactionWithResult>>();
+                                                                      .filter(|(_, tx_res)| 
+                                                                        tx_res.signed_tx.sig.account.eq(account_address))
+                                                                      .collect::<HashMap<String, TransactionWithResult>>();
             
-  let mut map = HashMap::new();
+  let mut count_map = HashMap::new();
   let mut total_input_hashs = Vec::new();
-  for (hash, tx_res) in send_tx_res {
+  for (hash, tx_res) in send_tx_res.iter() {
     total_input_hashs.extend(input_txs(&tx_res.signed_tx.value));
   }
   for hash in total_input_hashs.into_iter() {
-    match map.get_mut(&hash) {
+    match count_map.get_mut(&hash) {
       Some(count) => *count += 1,
-      None => { map.insert(hash, 1); }
+      None => { count_map.insert(hash, 1); }
     }     
   }
   let tx_map = send_tx_res.clone();
-  map.into_iter().filter(|(_, v)| *v > 1).map(|(k, _)| {
-    tx_map.get(&k);
+  count_map.into_iter().filter(|(_, v)| *v > 1).map(|(k, v)| {
+    let tx_res = tx_map.get(&k).unwrap();
+
+    // outputs(tx_res).unwrap().get(&k).unwrap().
+
   });
 
             

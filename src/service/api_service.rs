@@ -3,6 +3,7 @@ use std::{time::Duration, collections::HashMap, error::Error};
 use crate::{transaction::TransactionWithResult, model::{blockchain_response::{Either, ResultError}, node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block};
 use lazy_static::lazy_static;
 use log::info;
+use rayon::vec;
 use serde_json::json;
 use tokio::time::sleep;
 use std::fmt::Debug;
@@ -266,5 +267,32 @@ impl ApiService {
     let res: Result<Option<NftState>, String> = Self::get_request(format!("{BASE_URI}/token/{token_id}")).await;
     res.unwrap_or_default()
   }
-  
+
+  pub async fn post_txs(txs: String) -> Result<Vec<String>, String> {
+    let ref url = format!("{BASE_URI}/tx");
+    match CLIENT.post(url.as_str()).header("Content-Type", "application/json").body(txs).send().await {
+      Ok(res) => match res.text().await  {
+        Ok(payload) => {
+          println!("Raw payload: {}", payload);  
+          let value: Result<Vec<String>, serde_json::Error> = serde_json::from_str(&payload);
+          match value {
+            Ok(val) => Ok(val),
+            Err(err) => {
+              // println!("0: {}", err.to_string());
+              let err_result: Result<String, _> = serde_json::from_str(&payload);
+              match err_result {
+                Ok(err_msg) => Err(format!("1: {err_msg}")),
+                Err(err) => Err(format!("2: {}", err.to_string())),
+              }
+            },
+          }
+        },
+        Err(err) => Err(err.to_string()),
+      },
+      Err(err) => {
+        println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
+        Err(format!("3: {}",err.to_string()))
+      },
+    }
+  }  
 }
