@@ -1530,26 +1530,20 @@ impl Job for TransactionWithResult {
         deposit_to_accounts(&outputs_in_latest, info);
         updated_accounts.extend(outputs_in_latest.keys().cloned().collect::<HashSet<String>>());
       });
-      let unspent_txs = inputs_txs.iter().filter(|input_tx| !spent_txs.contains(input_tx.clone())); 
-      // let unspent_txs = inputs_txs.iter();
-      for input_hash in unspent_txs {
-        // if account_input_txs.contains(input_hash) {
-        //   println!("input tx 중복:  {from_account}\n{:?}\n", input_hash);
-        //   panic!();
-        //   continue; 
-        // }
 
-        let input_tx_res = ApiService::get_tx_always(input_hash).await;
+      let unspent_txs = inputs_txs.iter().filter(|input_tx| !spent_txs.contains(input_tx.clone())); 
+      for utxo_hash in unspent_txs {
+        let input_tx_res = ApiService::get_tx_always(utxo_hash).await;
         let outputs_in_input_tx = extract_outputs_from_input_tx_for_withdraw(input_tx_res, from_account);
         
         // withdraw_from_outputs(outputs, info, from_account, update_balance_fn);
         match outputs_in_input_tx
           .get(from_account)
-          .ok_or_else(|| println!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다. Latest_tx:\n{:?}", 
+          .ok_or_else(|| println!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다. Latest_tx - {:?}", 
                                     serde_json::to_string(&self).unwrap().replace("\\", "").replace("\n", "")))
           .and_then(|withdraw_val| {
             info.get_mut(from_account)
-                .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx:\n{:?}", 
+                .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx - {:?}", 
                                           serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
                 .map(|current_balance| *current_balance -= withdraw_val)
           }) { 

@@ -75,7 +75,7 @@ async fn build_saved_state_proc(db: &DatabaseConnection, mut account_balance_inf
                                       .sorted_by_key(|(_, tx_res)| tx_res.signed_tx.value.created_at());
 
         for (tx_state, tx_res) in iter {
-          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut cloned_account_balance_info).await);
+          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut cloned_account_balance_info, &HashSet::new()).await);
           // transfered_nft_token_ids.extend(tx_res.update_nft_owner_info(nft_owner_info));
           
         }

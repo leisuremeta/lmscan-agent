@@ -87,7 +87,7 @@ async fn balance_build_history() {
     // let mut temp_balance_info = balance_info.clone();
     // let curr_balance = temp_balance_info.remove(account_address).unwrap_or(BigDecimal::from(0));
     println!("tx hash: {hash}");
-    tx_res.update_account_balance_info(&mut balance_info).await;
+    tx_res.update_account_balance_info(&mut balance_info, &HashSet::new()).await;
     
     // let result_balance = match balance_info.get(account_address) {
     //   Some(val) => val.clone(),
