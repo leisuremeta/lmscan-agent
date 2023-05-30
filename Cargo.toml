@@ -27,6 +27,7 @@ itertools = "0.10.5"
 async_once = "0.2.6"
 lazy_static = "1.4.0"
 rayon = "1.7"
+sled = { version = "0.34.7", features = ["compression"] }
 
 [dependencies.sea-orm]
 version = "0.11.0"

@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::str::from_utf8;
+use std::sync::Arc;
 use std::{collections::HashMap};
 use std::time::Duration;
-use std::vec;
+use std::{vec, default};
 
 use bigdecimal::BigDecimal;
 use futures::executor::block_on;
@@ -28,6 +30,7 @@ use log::{error, info};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
+use sled::{Db, Config};
 use tokio::time::sleep;
 
 static DOWNLOAD_BATCH_UNIT: u32 = 50;
@@ -112,6 +115,22 @@ async fn get_total_accounts(db: &DatabaseConnection) -> Option<i64> {
 async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, BigDecimal> {
   let accounts = account_entity::Entity::find().all(db).await.unwrap();
   accounts.into_iter().map(|account| (account.address, account.balance)).collect::<HashMap<String, BigDecimal>>()
+}
+
+async fn account_spend_txs(db: &Db) -> HashMap<String, HashSet<String>> {
+  let mut result: HashMap<String, HashSet<String>> = HashMap::new();
+
+  for item in db.iter() {
+    let (key, value) = item.unwrap();
+
+    let key = from_utf8(&key).unwrap();
+    let value: Vec<String> = serde_json::from_slice(&value).unwrap();
+
+    let hash_set: HashSet<String> = value.into_iter().collect();
+    result.insert(key.to_string(), hash_set);
+  }
+
+  result
 }
 
 // async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, i128> {
@@ -279,8 +298,7 @@ async fn firstly_save_all_create_event(create_account_event_opt: Option<Addition
                                        db: &DatabaseConnection) {
   let txn = db.begin().await.unwrap();
   match create_nft_file_event_opt {
-    Some(AdditionalEntity::CreateNftFile(vec)) => {
-      println!("{:?}", vec);
+    Some(AdditionalEntity::CreateNftFile(vec)) if !vec.is_empty() => {
       let outer_vec: Vec<Vec<nft_file::ActiveModel>> = vec.into_iter()
                                                           .chunks(10)
                                                           .into_iter()
@@ -303,7 +321,7 @@ async fn firstly_save_all_create_event(create_account_event_opt: Option<Addition
   };
 
   match create_account_event_opt {
-    Some(AdditionalEntity::CreateAccount(vec)) => {
+    Some(AdditionalEntity::CreateAccount(vec)) if !vec.is_empty() => { 
       match account_entity::Entity::insert_many(vec)
       .on_conflict(OnConflict::column(account_entity::Column::Address).do_nothing().to_owned())
       .exec(&txn).await.err() {
@@ -351,6 +369,26 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
   let balance_info = account_balance_info.iter()
                                           .map(|(address, balance)| format!("('{address}',{balance})"))
                                           .collect::<Vec<String>>().join(",");
+                                        
+  // match account_balance_info.get("99492bc6664940e36cf21c7a33868a7bfded29e8") {
+  //   Some(value) => {
+  //     let account = account_entity::Entity::find_by_id("99492bc6664940e36cf21c7a33868a7bfded29e8").one(db).await.unwrap().unwrap();
+  //     println!("1 - 99492bc6664940e36cf21c7a33868a7bfded29e8 - {value}, {:?}", account);
+  //     println!("balance_info - {balance_info}");
+  //   },
+  //   None => (),
+  // };
+  // match account_balance_info.get("cccf6911e96ce1fa87e0757afb464a6929c8e8eb") {
+  //   Some(value) => {
+  //     println!("1 - cccf6911e96ce1fa87e0757afb464a6929c8e8eb - {value}");
+  //     let account = account_entity::Entity::find_by_id("cccf6911e96ce1fa87e0757afb464a6929c8e8eb").one(db).await.unwrap().unwrap();
+  //     println!("1 - cccf6911e96ce1fa87e0757afb464a6929c8e8eb - {value}, {:?}", account);
+  //     println!("balance_info - {balance_info}");
+  //   },
+  //   None => (),
+  // };
+  
+
   let query = format!(
     r#"update account
       set balance = nv.balance
@@ -365,7 +403,16 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
   //   Err(err) => err,
   // }
 
-  match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
+  // match db.query_one(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
+  //   Err(err) => {
+  //     error!("update_all_account_balance_info err: {err}");
+  //     // false
+  //     panic!("update_all_account_balance_info: {err}")
+  //   },
+  //   _ => true
+  // }
+    
+  match db.execute(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
     Err(err) => {
       error!("update_all_account_balance_info err: {err}");
       // false
@@ -375,12 +422,11 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
   }
 }
 
-async fn finish_all_block_states(block_states: Vec<block_state::Model>, db: &DatabaseTransaction) -> bool {
-  if block_states.is_empty() { return true }
+async fn finish_all_block_states(block_hashs: Vec<String>, db: &DatabaseTransaction) -> bool {
+  if block_hashs.is_empty() { return true }
   if let Err(err) = block_state::Entity::update_many()
                                         .col_expr(block_state::Column::IsBuild, Expr::value(true))
-                                        .filter(block_state::Column::Hash.is_in(block_states.iter().map(|b| b.hash.clone())
-                                        .collect::<Vec<String>>()))
+                                        .filter(block_state::Column::Hash.is_in(block_hashs))
                                         .exec(db).await {
     error!("finish_all_block_states fail : {err}");
     // panic!("finish_all_block_states: {err}");
@@ -507,12 +553,16 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
 async fn build_saved_state_proc 
 (
   db: &DatabaseConnection, 
+  sled: Arc<Db>,
   mut account_balance_info: HashMap<String, BigDecimal>,
   nft_owner_info: &mut HashMap<String, String>
 ) 
   -> HashMap<String, BigDecimal> 
 {
-  info!("build_saved_state_proc started");
+  println!("build_saved_state_proc started");
+  let mut block_num = 0;
+  
+  // while let Some(block_states) = get_block_states_after_order_by_asc_limit(db, block_num).await  {
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
     let mut cloned_account_balance_info = account_balance_info.clone();
     let mut tx_entities = vec![];
@@ -522,25 +572,81 @@ async fn build_saved_state_proc
     let mut transfered_nft_token_ids = HashSet::new();
 
     let block_hashs = block_states.iter().map(|b|b.hash.clone()).collect::<Vec<String>>();
-    let mut txs_in_block = get_tx_states_in_block_hashs(block_hashs, db).await;
+    let mut txs_in_block: HashMap<String, Vec<(tx_state::Model, TransactionWithResult)>> = 
+      get_tx_states_in_block_hashs(block_hashs.clone(), db).await
+        .into_iter()
+        .map(|(block_hash, tx_states)| 
+          (
+            block_hash,
+            tx_states.into_iter()
+                      .map(|state| {
+                        let json = state.json.clone();
+                        (state, parse_from_json_str::<TransactionWithResult>(&json))
+                      })
+                      .sorted_by_key(|(_, tx_res)| tx_res.signed_tx.value.created_at())
+                      .collect()
+          )
+        )
+        .collect();
+    
+    
+    let curr_tx_signers: HashSet<String> = 
+      txs_in_block
+        .clone()
+        .into_iter()
+        .flat_map(|(_, v)| 
+            v.into_iter()
+             .flat_map(|(_, tx_res)| {
+               vec![tx_res.signed_tx.sig.account.clone()]
+             })
+        )
+        .collect();
 
-    for block_state in block_states.iter() {
-      let block = parse_from_json_str(block_state.json.as_str());
+    let mut signer_spent_txs: HashMap<String, HashSet<String>> = 
+      (&curr_tx_signers).into_iter().map(|account| {
+        let value = sled.get(account).unwrap_or_default().unwrap_or_default();
+        (
+          account.clone(),
+          serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new())
+        )
+      })
+      .collect();
+    
+    // if curr_tx_signers.len() > 1 {
+    //   println!("curr_tx_signers: {:?}", curr_tx_signers);
+    //   println!("signer_spent_txs: {:?}", signer_spent_txs);
+    // }
+    
+    println!("sled len: {:?}", sled.len());
+
+    let block_iter = 
+      block_states.into_iter()
+                  .map(|state| (parse_from_json_str::<Block>(state.json.as_str()), state));
+
+    for (block, block_state) in block_iter {
+      block_num = block.header.number;
+
       block_entities.push(block_entity::Model::from(&block, block_state.hash.clone()));
       
       if let Some(tx_states_in_block) = txs_in_block.remove(&block_state.hash) {
-        let iter = 
-          tx_states_in_block.iter().map(|state| (state, parse_from_json_str::<TransactionWithResult>(state.json.as_str())))
-                            .sorted_by_key(|(_, tx_res)| tx_res.signed_tx.value.created_at());
-
-        for (tx_state, tx_res) in iter {
-          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut cloned_account_balance_info).await);
+        for (tx_state, tx_res) in tx_states_in_block {
+          let signer = tx_res.signed_tx.sig.account.clone();
+          let spent_txs = signer_spent_txs.entry(signer.clone()).or_insert_with(HashSet::new);
+          // if input_txs.contains(&tx_state.hash) { 
+          //   println!("--------------");
+          //   println!("{signer}\n{:?}\n", input_txs);
+          //   panic!();
+          //   continue; 
+          // }
+          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut cloned_account_balance_info, spent_txs).await);
           transfered_nft_token_ids.extend(tx_res.update_nft_owner_info(nft_owner_info));
+
+          spent_txs.extend(tx_res.input_hashs());
           
           let tx = &tx_res.signed_tx.value;
-          let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account, 
-                                              tx_state.block_hash.clone(), block_state.number, 
-                                              tx_state.json.clone(), tx_res.result);
+          let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account.clone(), 
+                                              tx_state.block_hash.clone(), block_state.number.clone(), 
+                                              tx_state.json.clone(), tx_res.result.clone());
           tx.extract_additional_entity(&tx_entity, &mut additional_entity_store).await;
           tx_entities.push(tx_entity);
         }
@@ -556,14 +662,19 @@ async fn build_saved_state_proc
                                  additional_entity_store.remove(&AdditionalEntityKey::CreateNftFile),
                                                             &db).await;
     
+    for (k, v) in signer_spent_txs.into_iter() {
+      sled.insert(k.as_bytes(), serde_json::to_vec(&v).unwrap()).unwrap();
+    }
+
     let save_res = &db.transaction::<_, (), DbErr>(|txn| {
       Box::pin(async move {
-        if !save_all_blocks(block_entities, txn).await ||
-           !save_all_txs(tx_entities, txn).await ||
+        if 
+          !save_all_blocks(block_entities, txn).await ||
+           !save_all_txs(tx_entities.clone(), txn).await ||
            !save_all_nft_txs(additional_entity_store.remove(&AdditionalEntityKey::NftTx), txn).await ||
-           !update_all_account_balance_info(this_time_updated_balance_accounts, txn).await ||
            !update_all_nft_file_owner(this_time_updated_nft_owners, txn).await ||
-           !finish_all_block_states(block_states, txn).await
+          !update_all_account_balance_info(this_time_updated_balance_accounts, txn).await ||
+           !finish_all_block_states(block_hashs, txn).await
         {
           return Err(DbErr::Query(RuntimeErr::Internal("Force Rollback!".to_owned())))
         }    
@@ -572,24 +683,43 @@ async fn build_saved_state_proc
     })
     .await;
 
+    // match cloned_account_balance_info.get("99492bc6664940e36cf21c7a33868a7bfded29e8") {
+    //   Some(value) => {
+    //     println!("2 - 99492bc6664940e36cf21c7a33868a7bfded29e8 - {value}");
+    //   },
+    //   None => (),
+    // };
+    // match cloned_account_balance_info.get("cccf6911e96ce1fa87e0757afb464a6929c8e8eb") {
+    //   Some(value) => {
+    //     println!("2 - cccf6911e96ce1fa87e0757afb464a6929c8e8eb - {value}");
+    //   },
+    //   None => (),
+    // };
+
+    // account_balance_info = cloned_account_balance_info;
+    // sled.flush_async().await.unwrap();
+
     if let Err(err) = save_res {
       remove_firstly_saved_create_events(addresses, token_ids, &db).await;
       error!("save transaction process err: {err}");
       panic!("save transaction process err: {err}");
     } else {
-      account_balance_info = cloned_account_balance_info
+      account_balance_info = cloned_account_balance_info;
+      sled.flush_async().await.unwrap();
     }
   } 
   info!("build_saved_state_proc ended");
   account_balance_info
 }
 
-
-async fn block_check_loop(db: DatabaseConnection) {
+async fn block_check_loop(db: DatabaseConnection, sled: Arc<Db>) {
   tokio::spawn(async move {
     let mut account_balance_info = get_account_balance_infos(&db).await;
     let mut nft_owner_info = get_nft_owner_infos(&db).await;
-    account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
+    // let mut account_spend_txs = account_spend_txs(&sled).await;
+    // account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
+    account_balance_info = build_saved_state_proc(&db, sled.clone(), HashMap::new(), &mut nft_owner_info).await;
+    panic!();
     loop {
       info!("block_check_loop start");
       
@@ -598,7 +728,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
       save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
-      account_balance_info = build_saved_state_proc(&db, account_balance_info, &mut nft_owner_info).await;
+      account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
       info!("block_check_loop end");
     }
@@ -608,17 +738,39 @@ async fn block_check_loop(db: DatabaseConnection) {
 
 #[tokio::main]
 async fn main() {
+  println!("1111");
+  let sled = 
+    Arc::new(
+      sled::Config::default()
+        .path("/Users/jichangho/playnomm/lmscan-agent/sled/input_tx".to_owned())
+        .use_compression(true)
+        .compression_factor(6)
+        .flush_every_ms(None)
+        .open()
+        .unwrap()
+    );
+
+  println!("1111");
   dotenv().expect("Unable to load environment variables from .env file");
   log4rs::init_file(var("LOG_CONFIG_FILE_PATH").unwrap(), Default::default()).unwrap();
 
   let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
+  println!("222");
   let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
 
   let db = db_connn(database_url).await;
-  
+  println!("333");
   tokio::join!(
-    summary_loop(db.clone(), coin_market_api_key),
-    block_check_loop(db),
+    // summary_loop(db.clone(), coin_market_api_key),
+    block_check_loop(db, sled),
   );
 
+}
+
+
+async fn get_block_states_after_order_by_asc_limit(db: &DatabaseConnection, num: i64) -> Option<Vec<block_state::Model>> {
+  block_state::Entity::find()
+                      .filter(block_state::Column::Number.gt(num))
+                      .order_by_asc(block_state::Column::Number)
+                      .paginate(db, BUILD_BATCH_UNIT).fetch_and_next().await.unwrap()
 }

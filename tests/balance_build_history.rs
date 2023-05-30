@@ -14,7 +14,7 @@ async fn balance_build_history() {
   let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
   let ref db = db_connn(database_url).await;
 
-  let account_address = "4b49c1ad5c1973b49f4fb131bdfddc3";
+  let account_address = "77a0d306a33c73a7599e32f6f5ec27a17b98e207";
   let mut output_file = File::create(Path::new(&format!("{account_address}_fungible_and_input_txs.txt")))
                                     // .append(true)
                                     // .open("")
@@ -25,7 +25,7 @@ async fn balance_build_history() {
   // -- curr_balance, result_balance, inequality_sign, amount
   // ++ 타겟 계정 자신에게 남은 잔고 보내는 양 (amount)
   // double spanding utxo 의 amount * duplicated count
-  output_file.write(format!("hash, sub_type, signer, curr_balance, result_balance, output_sum inequality_sign input_sum, amount, input_txs\n").as_bytes()).unwrap();
+  output_file.write(format!("hash, sub_type, signer, output_sum, input_sum, input_txs\n").as_bytes()).unwrap();
 
   let query = format!(
     r#"select * from tx where 
@@ -70,11 +70,12 @@ async fn balance_build_history() {
       None => { count_map.insert(hash, 1); }
     }     
   }
+  
   let tx_map = send_tx_res.clone();
   count_map.into_iter().filter(|(_, v)| *v > 1).map(|(k, v)| {
     let tx_res = tx_map.get(&k).unwrap();
 
-    // outputs(tx_res).unwrap().get(&k).unwrap().
+    outputs(tx_res).unwrap().get(&k).unwrap();
 
   });
 
@@ -109,7 +110,9 @@ async fn balance_build_history() {
                                .unwrap_or(BigDecimal::from(0));
     let input_txs = input_txs(&tx_res.signed_tx.value).join(",");
 
-    output_file.write(format!("{hash}, {sub_type}, {signer}, {output_sum}, {input_sum}, {amount}, {input_txs}\n").as_bytes()).unwrap();
+    let remainder = remainder(&tx_res);
+    let remainder = if remainder.is_some() { remainder.unwrap().to_string() } else { String::from("") };
+    output_file.write(format!("{hash}, {sub_type}, {signer}, {output_sum}, {input_sum}, {input_txs}, {remainder}\n").as_bytes()).unwrap();
   }                         
 }
 
@@ -150,6 +153,21 @@ fn outputs(tx_res: &TransactionWithResult) -> Option<HashMap<String, BigDecimal>
         };
         Some(HashMap::from([(from_account, output_amount)]))
       },
+      _ => None,
+    },
+    _ => None,
+  }
+}
+
+fn remainder(tx_res: &TransactionWithResult) -> Option<BigDecimal> {
+  match &tx_res.signed_tx.value {
+    Transaction::TokenTx(tx) => match tx {
+      TokenTx::EntrustFungibleToken(t) => {
+        match tx_res.result.as_ref().unwrap() {
+          TransactionResult::EntrustFungibleTokenResult(res) => Some(res.remainder.clone()),
+          _ => panic!("invalid ExecuteRewardResult"),
+        }
+      }
       _ => None,
     },
     _ => None,

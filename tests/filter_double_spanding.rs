@@ -14,15 +14,21 @@ async fn filter_double_spanding() {
   let ref db = db_connn(database_url).await;
 
   
-  let mut output_file = File::create(Path::new("filter_double_spanding"))
+  // let mut output_file = File::create(Path::new("filter_double_spanding"))
+  //                                   // .append(true)
+  //                                   // .open("")
+  //                                   .expect("cannot open output file");
+
+  // let accounts = account_entity::Entity::find().all(db).await.unwrap();
+  let mut counter = 0;
+  // for account in accounts {
+    // let account_address = account.address;
+    let account_address ="reward-activity";
+    let mut output_file = File::create(Path::new(&format!("{account_address}_filter_double_spanding")))
                                     // .append(true)
                                     // .open("")
                                     .expect("cannot open output file");
 
-  let accounts = account_entity::Entity::find().all(db).await.unwrap();
-  let mut counter = 0;
-  for account in accounts {
-    let account_address = account.address;
     let query = format!(
       r#"select * from tx where 
           (
@@ -92,7 +98,7 @@ async fn filter_double_spanding() {
 
       counter += 1;
     }
-  }
+  // }
 
   output_file.write(format!("\n\n{counter}\n").as_bytes()).unwrap();
 }

@@ -1,13 +1,12 @@
 use bigdecimal::BigDecimal;
-use log::error;
 use sea_orm::Set;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use sled::Db;
 use core::panic;
 use std::collections::{HashSet, HashMap};
 use std::fmt::Debug;
-use std::fs::File;
-use std::io::Write;
+use std::sync::Arc;
 extern crate chrono;
 use crate::service::api_service::ApiService;
 use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
@@ -1349,8 +1348,10 @@ pub struct NftMetaInfo {
 
 #[async_trait]
 pub trait Job {
-  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String>;
+  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>, account_input_txs: &HashSet<String>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
+  fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>);
+  fn input_hashs(&self) -> Vec<String>;
 }
 
 #[async_trait]
@@ -1369,27 +1370,54 @@ impl Job for TransactionWithResult {
     }
     updated_accouts
   }
-
-  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>) -> HashSet<String> {
-    fn withdraw_from_outputs<F>(
-      outputs_in_input_tx: HashMap<String, BigDecimal>,
-      info: &mut HashMap<String, BigDecimal>,
-      from_account: &String,
-      update_balance: F,
-    ) where 
-      F: Fn(&mut BigDecimal, &BigDecimal)
-    {
-      outputs_in_input_tx
-        .get(from_account)
-        .ok_or_else(|| format!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다."))
-        .and_then(|deposit_val| {
-          info.get_mut(from_account)
-              .ok_or_else(|| format!("'{from_account}'의 기존 balance 가 존재하지 않습니다."))
-              .map(|balance| update_balance(balance, deposit_val))
-        })
-        .unwrap_or_else(|err| panic!("{err}"));
+  
+  fn input_hashs(&self) -> Vec<String> {
+    match self.signed_tx.value.clone() {
+      Transaction::RewardTx(tx) => match tx {
+        RewardTx::OfferReward(t) => t.inputs,
+        RewardTx::ExecuteOwnershipReward(t) => t.inputs,
+        RewardTx::ExecuteReward(t) => vec![],
+        _ => vec![],
+      },
+      Transaction::TokenTx(tx) => match tx {
+        TokenTx::TransferFungibleToken(t) => t.inputs,
+        TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
+        TokenTx::EntrustFungibleToken(t) =>  t.inputs,
+        TokenTx::BurnFungibleToken(t) => t.inputs,
+        _ => vec![],
+      },
+      _ => vec![],
     }
+  }
+  
+  fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>)  {
+    fn input_txs(tx: &Transaction) -> Vec<String> {
+      match tx.clone() {
+        Transaction::RewardTx(tx) => match tx {
+          RewardTx::OfferReward(t) => t.inputs,
+          RewardTx::ExecuteOwnershipReward(t) => t.inputs,
+          RewardTx::ExecuteReward(t) => vec![],
+          _ => vec![],
+        },
+        Transaction::TokenTx(tx) => match tx {
+          TokenTx::TransferFungibleToken(t) => t.inputs,
+          TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
+          TokenTx::EntrustFungibleToken(t) =>  t.inputs,
+          TokenTx::BurnFungibleToken(t) => t.inputs,
+          _ => vec![],
+        },
+        _ => vec![],
+      }
+    }
+    let input_hashs = input_txs(&self.signed_tx.value).into_iter().collect::<HashSet<String>>();
+    let signer = self.signed_tx.sig.account.clone();
+    match info.get_mut(&signer) {
+      Some(hashs) => hashs.extend(input_hashs),
+      None => { info.insert(signer, input_hashs); },
+    };
+  }
 
+  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>, spent_txs: &HashSet<String>) -> HashSet<String> {
     // BurnFungibleToken 의 경우에는 해당이 안됨.
     fn deposit_to_accounts(
       outputs: &HashMap<String, BigDecimal>,
@@ -1472,7 +1500,7 @@ impl Job for TransactionWithResult {
           Some((Some(t.outputs), vec![])), 
         TokenTx::DisposeEntrustedFungibleToken(t) =>  //
           Some((Some(t.outputs), t.inputs)),  
-        TokenTx::EntrustFungibleToken(t) =>  {
+        TokenTx::EntrustFungibleToken(t) =>  {  // playnomm 일수없음.
           let remainder = match (&self.result).as_ref().unwrap() {
             TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),
             _ => panic!("invalid BurnFungibleTokenResult")
@@ -1502,8 +1530,15 @@ impl Job for TransactionWithResult {
         deposit_to_accounts(&outputs_in_latest, info);
         updated_accounts.extend(outputs_in_latest.keys().cloned().collect::<HashSet<String>>());
       });
+      let unspent_txs = inputs_txs.iter().filter(|input_tx| !spent_txs.contains(input_tx.clone())); 
+      // let unspent_txs = inputs_txs.iter();
+      for input_hash in unspent_txs {
+        // if account_input_txs.contains(input_hash) {
+        //   println!("input tx 중복:  {from_account}\n{:?}\n", input_hash);
+        //   panic!();
+        //   continue; 
+        // }
 
-      for input_hash in inputs_txs.iter() {
         let input_tx_res = ApiService::get_tx_always(input_hash).await;
         let outputs_in_input_tx = extract_outputs_from_input_tx_for_withdraw(input_tx_res, from_account);
         
@@ -1575,7 +1610,8 @@ impl ExtractEntity for Transaction {
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::MintNft(tx) => {
-          let nft_meta_info_opt = ApiService::get_request_until(tx.data_url.clone(), 5).await;
+          // let nft_meta_info_opt = ApiService::get_request_until(tx.data_url.clone(), 5).await;
+          let nft_meta_info_opt = None;
           let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
           match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
             Some(v) => match v { 
