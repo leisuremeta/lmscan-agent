@@ -8,7 +8,7 @@ use lmscan_agent::library::common::db_connn;
 use sea_orm::*;
 
 #[tokio::test]
-async fn fungible_tx() {
+async fn fungible_tx_tracking() {
   let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
   let ref db = db_connn(database_url).await;
 
@@ -17,7 +17,7 @@ async fn fungible_tx() {
                                     // .open("")
                                     .expect("cannot open output file");
 
-  let account_address = "reward-posting";
+  let account_address = "8e39dcc13ebdb7e8eb3da92090e4058c44ec9ca7";
 
   output_file.write(format!("{account_address}_fungible_history\n\n").as_bytes()).unwrap();
 

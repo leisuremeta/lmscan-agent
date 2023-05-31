@@ -1499,7 +1499,7 @@ impl Job for TransactionWithResult {
         TokenTx::MintFungibleToken(t) =>   //
           Some((Some(t.outputs), vec![])), 
         TokenTx::DisposeEntrustedFungibleToken(t) =>  //
-          Some((Some(t.outputs), t.inputs)),  
+          Some((Some(t.outputs), vec![])),  
         TokenTx::EntrustFungibleToken(t) =>  {  // playnomm 일수없음.
           let remainder = match (&self.result).as_ref().unwrap() {
             TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),

@@ -28,8 +28,6 @@ async fn balance_local_build() {
     );
 
   let mut output_file = File::create(Path::new("prod_balance_local_build.txt"))
-                                    // .append(true)
-                                    // .open("")
                                     .expect("cannot open output file");
   output_file.write(format!("address, blc_balance, scan_balance, equal, diff\n").as_bytes()).expect("write failed");
   let build_result = build_saved_state_proc(db, sled, HashMap::new(), &mut HashMap::new()).await;
@@ -105,7 +103,6 @@ async fn build_saved_state_proc
           )
         )
         .collect();
-    
     
     let curr_tx_signers: HashSet<String> = 
       txs_in_block
