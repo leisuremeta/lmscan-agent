@@ -1,4 +1,4 @@
-use std::{time::Duration, collections::HashMap, error::Error};
+use std::{time::Duration, collections::HashMap, error::{Error, self}};
 
 use crate::{transaction::TransactionWithResult, model::{blockchain_response::{Either, ResultError}, node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block};
 use lazy_static::lazy_static;
@@ -59,10 +59,14 @@ impl ApiService {
       match CLIENT.get(url.as_str()).send().await {
         Ok(res) => {
           match res.text().await {
-          // match res.json::<S>().await  {
             Ok(payload) => {
-              //return (CLIENT.get(url.as_str()).send().await.unwrap().text().await.unwrap(), payload)
-              return (serde_json::from_str(&payload).unwrap(), payload)
+              match serde_json::from_str(&payload) {
+                Ok(res) => return (res, payload),
+                Err(err) => {
+                  info!("get_request_with_json_always parse error: {err}");
+                  continue
+                },
+              }
             },
             Err(err) => {
               println!("--- {}", &CLIENT.get(url.as_str()).send().await.unwrap().text().await.unwrap());

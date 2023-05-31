@@ -508,15 +508,18 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
   while is_conitnue {
     let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await;
     info!("block number: {}, hash: {}", block.header.number, curr_block_hash);
-
+    
     let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
     block_states.push(block_state);
     
-    for tx_hash in &block.transaction_hashes {
-      let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
-      let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
-      txs.push(tx_state);
-    }
+    if block.header.number != 1468 {
+      for tx_hash in &block.transaction_hashes {
+      
+        let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
+        let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
+        txs.push(tx_state);
+      }  
+    } 
     
     block_counter += 1;
     curr_block_hash = block.header.parent_hash.clone();
