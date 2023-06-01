@@ -2,8 +2,9 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 
 use bigdecimal::BigDecimal;
 use dotenvy::var;
+use futures_util::future::Map;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity, model::balance_info::BalanceInfo};
 use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection, sea_query, QueryOrder, QuerySelect};
 use lmscan_agent::transaction::Common;
 
@@ -40,7 +41,11 @@ async fn balance_json() {
     let address = account.address;
 
     let response = ApiService::get_as_text_always(format!("http://lmc.leisuremeta.io/balance/{address}?movable=free")).await;
-    output_file.write(format!("{address},{response}\n").as_bytes()).unwrap();
+
+    let balance_res: HashMap<String, BalanceInfo> = serde_json::from_str(&response).unwrap();
+    let lm_balance = balance_res.get("LM").unwrap();
+    let tot_bal = lm_balance.total_amount.clone();
+    output_file.write(format!("{address},{tot_bal}\n").as_bytes()).unwrap();
   }
 
 }
