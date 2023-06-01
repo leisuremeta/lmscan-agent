@@ -4,7 +4,7 @@ use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
 use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity};
-use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
+use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection, sea_query, QueryOrder, QuerySelect};
 use lmscan_agent::transaction::Common;
 
 use std::hash::{Hash, Hasher};
@@ -20,16 +20,21 @@ async fn balance_json() {
   let mut output_file = File::create(Path::new(&format!("balance_json.txt")))
                                     .expect("cannot open output file");
 
-  let query = format!(
-    r#"select * from account order by balance desc limit 300;"#);
+  // let query = format!(
+  //   r#"select * from account order by balance desc limit 300;"#);
     
-  let accounts = account_entity::Entity::find().from_raw_sql(
-                                Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
-                              )
-                              .all(db)
-                              .await.unwrap();
+  // let accounts = account_entity::Entity::find().from_raw_sql(
+  //                               Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
+  //                             )
+  //                             .all(db)
+  //                             .await.unwrap();
 
-  // let accounts = account_entity::Entity::find().all(db).await.unwrap();
+  let accounts = account_entity::Entity::find()
+                                .order_by_desc(account_entity::Column::Balance)
+                                .limit(300)
+                                .all(db)
+                                .await
+                                .unwrap();
 
   for account in accounts {
     let address = account.address;
