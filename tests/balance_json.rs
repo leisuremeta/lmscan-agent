@@ -16,10 +16,20 @@ async fn balance_json() {
   let ref db = db_connn(database_url).await;
 
 
+
   let mut output_file = File::create(Path::new(&format!("balance_json.txt")))
                                     .expect("cannot open output file");
 
-  let accounts = account_entity::Entity::find().all(db).await.unwrap();
+  let query = format!(
+    r#"select * from account order by balance desc limit 300;"#);
+    
+  let accounts = account_entity::Entity::find().from_raw_sql(
+                                Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
+                              )
+                              .all(db)
+                              .await.unwrap();
+
+  // let accounts = account_entity::Entity::find().all(db).await.unwrap();
 
   for account in accounts {
     let address = account.address;
