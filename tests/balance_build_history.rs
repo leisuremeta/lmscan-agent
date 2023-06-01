@@ -3,9 +3,11 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService};
-use sea_orm::{Statement, DbBackend, EntityTrait};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity};
+use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
 use lmscan_agent::transaction::Common;
+
+use std::hash::{Hash, Hasher};
 
 
 // TODO:
@@ -14,6 +16,189 @@ use lmscan_agent::transaction::Common;
 //  [2] input tx 재사용
 //  [3] 다른 사람의 utxo 사용
 
+
+#[tokio::test]
+async fn sum_diff() {
+  let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
+  let ref db = db_connn(database_url).await;
+
+  let mut sled_path = std::env::current_dir().unwrap();
+  sled_path.push("test");
+  sled_path.push("sled");
+  sled_path.push("input_tx");
+
+  // This will remove the directory and all its contents.
+  if let Err(err) = fs::remove_dir_all(&sled_path) {
+    println!("Failed to remove old Sled DB directory. - {err}");
+  } 
+
+  let sled = 
+    Arc::new(
+      sled::Config::default()
+        .path(sled_path)
+        .use_compression(true)
+        .compression_factor(6)
+        .flush_every_ms(None)
+        .open()
+        .unwrap()
+    );
+
+  let mut output_file = File::create(Path::new(&format!("output_input_diff.txt")))
+                                    .expect("cannot open output file");
+  
+  // -- curr_balance, result_balance, inequality_sign, amount
+  // ++ 타겟 계정 자신에게 남은 잔고 보내는 양 (amount)
+  // double spanding utxo 의 amount * duplicated count
+  output_file.write(format!("signer, hash, sub_type, output_sum, inequality_sign, input_sum, diff\n").as_bytes()).unwrap();
+  
+
+  let query = format!(
+    r#"select * from tx_state where 
+        (
+          json like '%OfferReward%' or
+          json like '%ExecuteOwnershipReward%' or
+          json like '%ExecuteReward%' or
+          json like '%EntrustFungibleToken%' or 
+          json like '%TransferFungibleToken%'
+        );"#);
+    
+  let tx_states = tx_state::Entity::find().from_raw_sql(
+                                Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
+                              )
+                              .all(db)
+                              .await.unwrap();
+                              
+  let tx_states = tx_states.iter().map(|state|(state.hash.clone(), state.json.clone()));
+
+  let tx_results = 
+      tx_states
+              .map(|(hash, state)| (hash, serde_json::from_str::<TransactionWithResult>(&state).unwrap()))
+              .sorted_by_key(|(_, tx)| tx.signed_tx.value.created_at());
+
+  for (hash, tx_res) in tx_results.into_iter() {
+    let signer = &tx_res.signed_tx.sig.account;
+    let value = sled.get(signer).unwrap_or_default().unwrap_or_default();
+    let mut spent_txs = serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new());
+
+    let sub_type  = extract_subtype(&tx_res);
+    println!("tx hash: {hash}");
+
+    let output_sum = output_sum_in_latest_tx(&tx_res).abs();
+    let input_sum  = input_sum_in_latest_tx(&tx_res, &db).await.abs();
+    if output_sum == input_sum { 
+      continue; 
+    }
+
+    let inequality_sign = 
+      if output_sum < input_sum {
+        "<"
+      } else {
+        ">"
+      };
+    // let input_txs = input_txs(&tx_res.signed_tx.value).join(",");
+
+    let diff = if output_sum > input_sum { output_sum.clone() - input_sum.clone() } else { input_sum.clone() - output_sum.clone() };
+    output_file.write(format!("{signer}, {hash}, {sub_type}, {output_sum}, {inequality_sign}, {input_sum}, {diff}\n").as_bytes()).unwrap();
+    
+    spent_txs.extend(tx_res.input_hashs());
+    sled.insert(signer.as_bytes(), serde_json::to_vec(&spent_txs).unwrap()).unwrap();
+  }       
+}        
+
+
+#[tokio::test]
+async fn filter_double_spend_other_tx() {
+  let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
+  let ref db = db_connn(database_url).await;
+
+  let mut output_file = File::create(Path::new(&format!("double_spend_other_tx.txt")))
+                                   .expect("cannot open output file");
+  let query = format!(
+    r#"select * from tx_state where 
+        (
+          json like '%OfferReward%' or
+          json like '%ExecuteOwnershipReward%' or
+          json like '%ExecuteReward%' or
+          json like '%EntrustFungibleToken%' or 
+          json like '%TransferFungibleToken%'
+        );"#);
+    
+  let tx_states = tx_state::Entity::find().from_raw_sql(
+                                Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
+                              )
+                              .all(db)
+                              .await.unwrap();
+                              
+  let tx_states = tx_states.iter().map(|state|(state.hash.clone(), state.json.clone()));
+
+  let tx_results = 
+      tx_states
+              .map(|(hash, state)| (hash, serde_json::from_str::<TransactionWithResult>(&state).unwrap()))
+              .sorted_by_key(|(_, tx)| tx.signed_tx.value.created_at());
+    
+
+  for (hash, tx_res) in tx_results {
+    let latest_signer = tx_res.clone().signed_tx.sig.account;
+    let tx_res = tx_res.clone();
+    let sub_type = extract_subtype(&tx_res);
+    
+    let inputs = input_txs(&tx_res.signed_tx.value);
+  
+    for input_tx_hash in inputs {
+      // let input_tx = ApiService::get_tx_always(&input_tx_hash).await;
+      let input_tx_state = tx_state::Entity::find_by_id(input_tx_hash.clone()).one(db).await.unwrap().unwrap();
+      let input_tx: TransactionWithResult = serde_json::from_str(&input_tx_state.json).unwrap();
+      let input_signer = input_tx.signed_tx.sig.account;
+      let input_tx_outputs = match input_tx.signed_tx.value.clone() {
+        Transaction::RewardTx(tx) => match tx {
+          RewardTx::OfferReward(t) => Some(t.outputs),
+          RewardTx::ExecuteOwnershipReward(t) => 
+            match input_tx.result.clone().unwrap() {
+              TransactionResult::ExecuteOwnershipRewardResult(res) =>
+                Some(res.outputs),
+              _ => None,
+            },
+          RewardTx::ExecuteReward(t) => 
+            match input_tx.result.clone().unwrap() {
+              TransactionResult::ExecuteRewardResult(res) => 
+              Some(res.outputs),
+              _ => None,
+            },
+          _ => None,
+        },
+        Transaction::TokenTx(tx) => match tx {
+          TokenTx::TransferFungibleToken(t) => Some(t.outputs),
+          TokenTx::MintFungibleToken(t) =>  Some(t.outputs), 
+          TokenTx::DisposeEntrustedFungibleToken(t) => Some(t.outputs),  
+          TokenTx::EntrustFungibleToken(t) => {
+            let remainder = match (&input_tx.result) {
+              Some(TransactionResult::EntrustFungibleTokenResult(res)) => res.remainder.clone(),
+              _ => panic!("invalid BurnFungibleTokenResult")
+            };
+            
+          }
+          TokenTx::BurnFungibleToken(t) => {
+            let output_amount = match (&tx_res.result).as_ref().unwrap() {
+              TransactionResult::BurnFungibleTokenResult(res) => res.output_amount.clone(),
+              _ => panic!("invalid BurnFungibleTokenResult")
+            };
+            if latest_signer == input_signer { Some(HashMap::from([(input_signer, output_amount)])) } else { None }
+          },
+          _ => None,
+        },
+        _ => None,
+      };
+
+      match input_tx_outputs {
+        Some(outputs) => match outputs.get(&latest_signer) {
+          None => { output_file.write(format!("{latest_signer},{hash},{sub_type},{input_tx_hash}").as_bytes()); },
+          _ => (),
+        }
+        _ => ()
+      };
+    }
+  }
+}
 
 #[tokio::test]
 async fn balance_build_history() {
@@ -28,7 +213,7 @@ async fn balance_build_history() {
   // This will remove the directory and all its contents.
   if let Err(err) = fs::remove_dir_all(&sled_path) {
     println!("Failed to remove old Sled DB directory. - {err}");
-  }
+  } 
 
   let sled = 
     Arc::new(
@@ -41,78 +226,77 @@ async fn balance_build_history() {
         .unwrap()
     );
 
-  let signer = "playnomm";
-  let mut output_file = File::create(Path::new(&format!("{signer}_fungible_and_input_txs.txt")))
-                                    // .append(true)
-                                    // .open("")
-                                    .expect("cannot open output file");
-
-
-  output_file.write(format!("{signer}\n\n").as_bytes()).unwrap();
+    let mut output_file = File::create(Path::new(&format!("output_input_diff.txt")))
+    // .append(true)
+    // .open("")
+    .expect("cannot open output file");
+  
   // -- curr_balance, result_balance, inequality_sign, amount
   // ++ 타겟 계정 자신에게 남은 잔고 보내는 양 (amount)
   // double spanding utxo 의 amount * duplicated count
-  output_file.write(format!("hash, sub_type, signer, output_sum, inequality_sign, input_sum, input_txs, spent_txs\n").as_bytes()).unwrap();
+  output_file.write(format!("signer, hash, sub_type, output_sum, inequality_sign, input_sum, diff\n").as_bytes()).unwrap();
+  
 
-  let query = format!(
-    r#"select * from tx where 
-        (
-          json like '%OfferReward%' or
-          json like '%ExecuteOwnershipReward%' or
-          json like '%ExecuteReward%' or
-          json like '%EntrustFungibleToken%' or 
-          json like '%TransferFungibleToken%' or
-          json like '%MintFungibleToken%' or
-          json like '%DisposeEntrustedFungibleToken%' or 
-          json like '%BurnFungibleToken%'
-        ) 
-      and json like '%account":"{signer}%';"#);
+  let accounts = account_entity::Entity::find().all(db).await.unwrap();
+  for account in accounts {
+    let signer = account.address;
     
-  let tx_states = tx_state::Entity::find().from_raw_sql(
-                                Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
-                              )
-                              .all(db)
-                              .await.unwrap();
-                              
-  let tx_states = tx_states.iter().map(|state|(state.hash.clone(), state.json.clone()));
+    if signer.is_empty() {
+      panic!()
+    }
 
-  let tx_results = 
-      tx_states
-              .map(|(hash, state)| (hash, serde_json::from_str::<TransactionWithResult>(&state).unwrap()))
-              .filter(|(_, tx_res)| tx_res.signed_tx.sig.account.eq(signer))
-              .sorted_by_key(|(_, tx)| tx.signed_tx.value.created_at());
+    let query = format!(
+      r#"select * from tx_state where 
+          (
+            json like '%OfferReward%' or
+            json like '%ExecuteOwnershipReward%' or
+            json like '%ExecuteReward%' or
+            json like '%EntrustFungibleToken%' or 
+            json like '%TransferFungibleToken%'
+          ) 
+        and json like '%account":"{signer}%';"#);
+      
+    let tx_states = tx_state::Entity::find().from_raw_sql(
+                                  Statement::from_sql_and_values(DbBackend::Postgres, &query, [])
+                                )
+                                .all(db)
+                                .await.unwrap();
+                                
+    let tx_states = tx_states.iter().map(|state|(state.hash.clone(), state.json.clone()));
 
-  for (hash, tx_res) in tx_results.into_iter() {
-    let value = sled.get(&signer).unwrap_or_default().unwrap_or_default();
-    let mut spent_txs = serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new());
+    let tx_results = 
+        tx_states
+                .map(|(hash, state)| (hash, serde_json::from_str::<TransactionWithResult>(&state).unwrap()))
+                .sorted_by_key(|(_, tx)| tx.signed_tx.value.created_at());
 
-    let sub_type  = extract_subtype(&tx_res);
-    println!("tx hash: {hash}");
+    for (hash, tx_res) in tx_results.into_iter() {
+      let value = sled.get(&signer).unwrap_or_default().unwrap_or_default();
+      let mut spent_txs = serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new());
 
-    // not Mint
-    // Dispose => EntrustFungibleToken (amount)
+      let sub_type  = extract_subtype(&tx_res);
+      println!("tx hash: {hash}");
 
-    // tx_res.update_account_balance_info(info, spent_txs).await;
+      let output_sum = output_sum_in_latest_tx(&tx_res).abs();
+      let input_sum  = input_sum_in_latest_tx(&tx_res, db).await.abs();
+      if output_sum == input_sum { 
+        continue; 
+      }
 
-    let output_sum = output_sum_in_latest_tx(&tx_res);
-    let input_sum  = input_sum_in_latest_tx(&tx_res).await;
-    let inequality_sign = 
-      if output_sum == input_sum {
-        "=="
-      } else if output_sum < input_sum {
-        "<"
-      } else {
-        ">"
-      };
-    let input_txs = input_txs(&tx_res.signed_tx.value).join(",");
+      let inequality_sign = 
+        if output_sum < input_sum {
+          "<"
+        } else {
+          ">"
+        };
+      // let input_txs = input_txs(&tx_res.signed_tx.value).join(",");
 
-    // let remainder = remainder(&tx_res);
-    // let remainder = if remainder.is_some() { remainder.unwrap().to_string() } else { String::from("") };
-    output_file.write(format!("{hash}, {sub_type}, {signer}, {output_sum}, {inequality_sign}, {input_sum}, {input_txs}, {:?}\n", spent_txs.clone()).as_bytes()).unwrap();
-    
-    spent_txs.extend(tx_res.input_hashs());
-    sled.insert(signer.as_bytes(), serde_json::to_vec(&spent_txs).unwrap()).unwrap();
-  }                         
+      let diff = if output_sum > input_sum { output_sum.clone() - input_sum.clone() } else { input_sum.clone() - output_sum.clone() };
+      output_file.write(format!("{signer},{hash},{sub_type},{output_sum},{inequality_sign},{input_sum},{diff}\n").as_bytes()).unwrap();
+      
+      spent_txs.extend(tx_res.input_hashs());
+      sled.insert(signer.as_bytes(), serde_json::to_vec(&spent_txs).unwrap()).unwrap();
+    }       
+  }        
 }
 
 fn outputs(tx_res: &TransactionWithResult) -> Option<HashMap<String, BigDecimal>> {
@@ -143,7 +327,7 @@ fn outputs(tx_res: &TransactionWithResult) -> Option<HashMap<String, BigDecimal>
           TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),
           _ => panic!("invalid BurnFungibleTokenResult")
         };
-        Some(HashMap::from([(from_account, remainder)]))
+        Some(HashMap::from([(from_account, remainder + t.amount)]))
       }
       TokenTx::BurnFungibleToken(t) => {
         let output_amount = match (&tx_res.result).as_ref().unwrap() {
@@ -201,13 +385,16 @@ fn input_txs(tx: &Transaction) -> Vec<String> {
   }
 }
 
-async fn input_sum_in_latest_tx(tx_res: &TransactionWithResult) -> BigDecimal {
+async fn input_sum_in_latest_tx(tx_res: &TransactionWithResult, db: &DatabaseConnection) -> BigDecimal {
   let from_account = &tx_res.signed_tx.sig.account;
   let inputs = input_txs(&tx_res.signed_tx.value);
   
   let mut output_sum: BigDecimal = BigDecimal::from(0);
   for input_tx_hash in inputs {
-    let input_tx = ApiService::get_tx_always(&input_tx_hash).await;
+    // let input_tx = ApiService::get_tx_always(&input_tx_hash).await;
+    let input_tx_state = tx_state::Entity::find_by_id(input_tx_hash).one(db).await.unwrap().unwrap();
+    let input_tx = serde_json::from_str(&input_tx_state.json).unwrap();
+
     let outputs_in_input_tx = extract_outputs_from_input_tx_for_withdraw(input_tx, from_account);
 
     output_sum += outputs_in_input_tx.get(from_account)

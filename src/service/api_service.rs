@@ -1,10 +1,8 @@
-use std::{time::Duration, collections::HashMap, error::{Error, self}};
+use std::{time::Duration, collections::HashMap};
 
-use crate::{transaction::TransactionWithResult, model::{blockchain_response::{Either, ResultError}, node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block};
+use crate::{transaction::TransactionWithResult, model::{node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block};
 use lazy_static::lazy_static;
 use log::info;
-use rayon::vec;
-use serde_json::json;
 use tokio::time::sleep;
 use std::fmt::Debug;
 
@@ -13,9 +11,9 @@ lazy_static! {
 }
 
 
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-// static BASE_URI: &str = "http://localhost:8080";
+static BASE_URI: &str = "http://localhost:8080";
 
 pub struct ApiService;
 
@@ -156,7 +154,6 @@ impl ApiService {
         println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
         Err(format!("3: {}",err.to_string()))
       },
-    
     }
   }
 
@@ -262,6 +259,23 @@ impl ApiService {
     Self::get_request_always(format!("{BASE_URI}/token/{token_id}")).await
   }
 
+  pub async fn get_as_text_always(uri: String) -> String {
+    loop {
+      match CLIENT.get(&uri).send().await {
+        Ok(res) => {
+          match res.text().await {
+            Ok(payload) => return payload,
+            Err(err) => {
+              panic!("{}", err.to_string());
+            },
+          }
+        },
+        Err(err) => println!("get_request_with_json_always err '{err}' - {:?}", uri.as_str()),
+      }
+      sleep(Duration::from_millis(500)).await;
+    }
+  }
+
   pub async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
     let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = Self::get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
     res.unwrap_or_default()
@@ -271,6 +285,8 @@ impl ApiService {
     let res: Result<Option<NftState>, String> = Self::get_request(format!("{BASE_URI}/token/{token_id}")).await;
     res.unwrap_or_default()
   }
+
+
 
   pub async fn post_txs(txs: String) -> Result<Vec<String>, String> {
     let ref url = format!("{BASE_URI}/tx");

@@ -1604,8 +1604,7 @@ impl ExtractEntity for Transaction {
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::MintNft(tx) => {
-          // let nft_meta_info_opt = ApiService::get_request_until(tx.data_url.clone(), 5).await;
-          let nft_meta_info_opt = None;
+          let nft_meta_info_opt = ApiService::get_request_until(tx.data_url.clone(), 5).await;
           let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
           match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
             Some(v) => match v { 
