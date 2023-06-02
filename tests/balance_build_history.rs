@@ -3,11 +3,9 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity};
 use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
 use lmscan_agent::transaction::Common;
-
-use std::hash::{Hash, Hasher};
 
 
 // TODO:
@@ -171,14 +169,14 @@ async fn filter_double_spend_other_tx() {
           TokenTx::MintFungibleToken(t) =>  Some(t.outputs), 
           TokenTx::DisposeEntrustedFungibleToken(t) => Some(t.outputs),  
           TokenTx::EntrustFungibleToken(t) => {
-            let remainder = match (&input_tx.result) {
-              Some(TransactionResult::EntrustFungibleTokenResult(res)) => res.remainder.clone(),
+            let remainder = match (&input_tx.result).clone().unwrap() {
+              TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),
               _ => panic!("invalid BurnFungibleTokenResult")
             };
-            
+            if latest_signer == input_signer { Some(HashMap::from([(input_signer, remainder)])) } else { None }
           }
           TokenTx::BurnFungibleToken(t) => {
-            let output_amount = match (&tx_res.result).as_ref().unwrap() {
+            let output_amount = match (&input_tx.result).clone().unwrap() {
               TransactionResult::BurnFungibleTokenResult(res) => res.output_amount.clone(),
               _ => panic!("invalid BurnFungibleTokenResult")
             };
@@ -191,7 +189,7 @@ async fn filter_double_spend_other_tx() {
 
       match input_tx_outputs {
         Some(outputs) => match outputs.get(&latest_signer) {
-          None => { output_file.write(format!("{latest_signer},{hash},{sub_type},{input_tx_hash}").as_bytes()); },
+          None => { output_file.write(format!("{latest_signer},{hash},{sub_type},{input_tx_hash}").as_bytes()).unwrap(); },
           _ => (),
         }
         _ => ()
@@ -226,10 +224,10 @@ async fn balance_build_history() {
         .unwrap()
     );
 
-    let mut output_file = File::create(Path::new(&format!("output_input_diff.txt")))
-    // .append(true)
-    // .open("")
-    .expect("cannot open output file");
+  let mut output_file = File::create(Path::new(&format!("output_input_diff.txt")))
+                                  // .append(true)
+                                  // .open("")
+                                  .expect("cannot open output file");
   
   // -- curr_balance, result_balance, inequality_sign, amount
   // ++ 타겟 계정 자신에게 남은 잔고 보내는 양 (amount)

@@ -1,14 +1,8 @@
-use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSet}, sync::Arc};
+use std::{fs::File, path::Path, io::Write, collections::{HashMap}};
 
-use bigdecimal::BigDecimal;
 use dotenvy::var;
-use futures_util::future::Map;
-use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, service::api_service::ApiService, account_entity, model::balance_info::BalanceInfo};
-use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection, sea_query, QueryOrder, QuerySelect};
-use lmscan_agent::transaction::Common;
-
-use std::hash::{Hash, Hasher};
+use lmscan_agent::{library::common::db_connn, service::api_service::ApiService, account_entity, model::balance_info::BalanceInfo};
+use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
 // 잔고 상위 300개 계정 order by desc, blc balance json
 #[tokio::test]

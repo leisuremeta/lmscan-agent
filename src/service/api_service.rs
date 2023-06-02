@@ -11,14 +11,13 @@ lazy_static! {
 }
 
 
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
+static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-static BASE_URI: &str = "http://localhost:8080";
+// static BASE_URI: &str = "http://localhost:8080";
 
 pub struct ApiService;
 
 impl ApiService {
-
   pub async fn get_request_header_always<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T, api_key: &str) -> S {
     loop {
       match CLIENT.get(url.as_str()).header("X-CMC_PRO_API_KEY", api_key).send().await {
@@ -37,7 +36,6 @@ impl ApiService {
     loop {
       match CLIENT.get(url.as_str()).send().await {
         Ok(res) => {
-          // println!("--- {}", serde_json::to_string(&CLIENT.get(url.as_str()).send().await.unwrap().text().await.unwrap()).unwrap());
           match res.json::<S>().await  {
             Ok(payload) => return payload,
             Err(err) => {

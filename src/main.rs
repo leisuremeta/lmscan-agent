@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 use std::str::from_utf8;
 use std::sync::Arc;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use std::time::Duration;
-use std::{vec, default};
+use std::vec;
 
 use bigdecimal::BigDecimal;
-use futures::executor::block_on;
 use lmscan_agent::service::api_service::ApiService;
 use lmscan_agent::transaction::{TransactionWithResult, Common, Job, AdditionalEntity, ExtractEntity, AdditionalEntityKey};
 use rust_decimal::Decimal;
@@ -15,7 +14,7 @@ use rust_decimal_macros::dec;
 use sea_orm::sea_query::{OnConflict, Expr};
 
 use lmscan_agent::{model::{block::Block, node_status::NodeStatus}, entity::*};
-use sea_orm::{DatabaseConnection};
+use sea_orm::DatabaseConnection;
 use sea_orm::*;
 use lmscan_agent::summary;
 use lmscan_agent::block_state::{Entity as BlockState};
@@ -79,7 +78,6 @@ async fn get_block_states_after_order_by_asc_limit(db: &DatabaseConnection, num:
 }
 
 async fn get_tx_states_in_block_hashs(block_hashs: Vec<String>, db: &DatabaseConnection) -> HashMap<String, Vec<tx_state::Model>> {
-
   TxState::find().filter(tx_state::Column::BlockHash.is_in(block_hashs))
                   .order_by_asc(tx_state::Column::EventTime)
                   .all(db).await.unwrap()
@@ -228,7 +226,6 @@ async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decima
     None => Some(dec!(0.0)),
   }
 }
-
 
 async fn save_all_block_states(block_states: Vec<block_state::ActiveModel>, txn: &DatabaseTransaction) {
   if block_states.is_empty() { return }
@@ -421,7 +418,6 @@ async fn finish_all_block_states(block_hashs: Vec<String>, db: &DatabaseTransact
   }
   true
 }
-
 
 async fn remove_firstly_saved_create_events(addresses: Vec<String>, token_ids: Vec<String>, db: &DatabaseConnection) {
   if !addresses.is_empty() {
