@@ -510,7 +510,6 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
     
     
     for tx_hash in &block.transaction_hashes {
-    
       let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
       let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
       txs.push(tx_state);
