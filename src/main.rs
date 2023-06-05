@@ -494,7 +494,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
 
 
 async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, db: &DatabaseConnection) {
-  info!("save_diff_state_proc started");
+  println!("save_diff_state_proc started");
   let mut is_conitnue = !curr_block_hash.eq(&target_hash);
 
   let mut block_counter = 0;
@@ -503,7 +503,7 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
   
   while is_conitnue {
     let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await;
-    info!("block number: {}, hash: {}", block.header.number, curr_block_hash);
+    println!("block number: {}, hash: {}", block.header.number, curr_block_hash);
     
     let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
     block_states.push(block_state);
@@ -530,7 +530,7 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
       txn.commit().await.unwrap();
     }
   }
-  info!("save_diff_state_proc ended");
+  println!("save_diff_state_proc ended");
 }
 
 
@@ -543,7 +543,7 @@ async fn build_saved_state_proc
 ) 
   -> HashMap<String, BigDecimal> 
 {
-  info!("build_saved_state_proc started");
+  println!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_asc_limit(db).await  {
     let mut cloned_account_balance_info = account_balance_info.clone();
     let mut tx_entities = vec![];
@@ -658,9 +658,10 @@ async fn build_saved_state_proc
       sled.flush().unwrap();
     }
   } 
-  info!("build_saved_state_proc ended");
+  println!("build_saved_state_proc ended");
   account_balance_info
 }
+
 
 async fn block_check_loop(db: DatabaseConnection, sled: Arc<Db>) {
   tokio::spawn(async move {
@@ -670,15 +671,18 @@ async fn block_check_loop(db: DatabaseConnection, sled: Arc<Db>) {
     account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
     
     loop {
-      info!("block_check_loop start");
-      // let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
+      println!("block_check_loop start");
+      let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
       let ref node_status = ApiService::get_node_status_always().await;
-      let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
+      save_diff_state_proc(node_status.best_hash.clone(), download_start_block.hash, &db).await;
+
+      // let ref node_status = ApiService::get_node_status_always().await;
+      // let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
+      // save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
       account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
-      info!("block_check_loop end");
+      println!("block_check_loop end");
     }
   }).await.unwrap()
 }
