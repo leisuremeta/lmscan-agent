@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, io::Write, collections::{HashMap, HashSet}, sync::Arc};
+use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSet}, sync::Arc};
 
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
@@ -16,17 +16,28 @@ async fn balance_local_build() {
   dotenv().expect("Unable to load environment variables from .env file");
   let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
   let ref db = db_connn(database_url).await;
+
+  let mut sled_path = std::env::current_dir().unwrap();
+  sled_path.push("test");
+  sled_path.push("sled");
+  sled_path.push("input_tx");
+
+  // This will remove the directory and all its contents.
+  if let Err(err) = fs::remove_dir_all(&sled_path) {
+    println!("Failed to remove old Sled DB directory. - {err}");
+  } 
+
   let sled = 
     Arc::new(
       sled::Config::default()
-        .path("/Users/jichangho/playnomm/lmscan-agent/sled/test/balance_local_build/input_tx".to_owned())
+        .path(sled_path)
         .use_compression(true)
         .compression_factor(6)
         .flush_every_ms(None)
         .open()
         .unwrap()
     );
-
+    
   let mut output_file = File::create(Path::new("prod_balance_local_build.txt"))
                                     .expect("cannot open output file");
   output_file.write(format!("address, blc_balance, scan_balance, equal, diff\n").as_bytes()).expect("write failed");
@@ -179,48 +190,6 @@ async fn build_saved_state_proc
       sled.insert(k.as_bytes(), serde_json::to_vec(&v).unwrap()).unwrap();
     }
     update_all_account_balance_info(this_time_updated_balance_accounts);
-
-    // let save_res = &db.transaction::<_, (), DbErr>(|txn| {
-    //   Box::pin(async move {
-    //     if !save_all_blocks(block_entities, txn).await ||
-    //        !save_all_txs(tx_entities.clone(), txn).await ||
-    //        !save_all_nft_txs(additional_entity_store.remove(&AdditionalEntityKey::NftTx), txn).await ||
-    //        !update_all_nft_file_owner(this_time_updated_nft_owners, txn).await ||
-    //        !finish_all_block_states(block_hashs, txn).await
-    //     {
-    //       // let account_input_txs = 
-    //       //   tx_entities.iter().map(|tx| 
-    //       //     (tx.from_addr.clone().unwrap(), tx.hash.clone().unwrap())
-    //       //   ).into_group_map();
-
-    //       // account_input_txs
-    //       //   .into_iter()
-    //       //   .for_each(|(key, curr_input_txs)| {
-    //       //     let value = sled.get(&key).unwrap_or_default().unwrap_or_default();
-    //       //     let mut data = serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new());
-    //       //     data.extend(curr_input_txs);
-    //       //     let new_value = serde_json::to_vec(&data).unwrap();
-    //       //     sled.insert(key, new_value).unwrap();
-    //       //   });
-
-    //       return Err(DbErr::Query(RuntimeErr::Internal("Force Rollback!".to_owned())))
-    //     }    
-    //     Ok(())
-    //   })
-    // })
-    // .await;
-    match cloned_account_balance_info.get("99492bc6664940e36cf21c7a33868a7bfded29e8") {
-      Some(value) => {
-        println!("2 - 99492bc6664940e36cf21c7a33868a7bfded29e8 - {value}");
-      },
-      None => (),
-    };
-    match cloned_account_balance_info.get("cccf6911e96ce1fa87e0757afb464a6929c8e8eb") {
-      Some(value) => {
-        println!("2 - cccf6911e96ce1fa87e0757afb464a6929c8e8eb - {value}");
-      },
-      None => (),
-    };
 
     account_balance_info = cloned_account_balance_info;
     sled.flush_async().await.unwrap();
