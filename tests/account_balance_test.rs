@@ -13,10 +13,10 @@ async fn account_balance_test() {
   let ref db = db_connn(database_url).await;
 
   let scan_accounts = account_entity::Entity::find()
-                                                        //  .filter(account_entity::Column::Balance.ne(0))
+                                                         .filter(account_entity::Column::Balance.ne(0))
                                                          .all(db).await.unwrap();
-  let scan_accounts = scan_accounts.into_iter()
-                                                                .filter(|acc| acc.created_at != acc.event_time);
+  // let scan_accounts = scan_accounts.into_iter()
+  //                                                               .filter(|acc| acc.created_at != acc.event_time);
   let mut success = 0;
   let mut fail = 0;
   let mut output_file = File::create(Path::new("balance check.txt"))
@@ -24,7 +24,7 @@ async fn account_balance_test() {
                                     // .open("")
                                     .expect("cannot open output file");
   output_file.write(format!("address, blc_balance, scan_balance, equal, diff\n").as_bytes()).expect("write failed");
-  for (count, scan_account) in scan_accounts.enumerate() {
+  for (count, scan_account) in scan_accounts.into_iter().enumerate() {
     let address = scan_account.address.clone();
     println!("scan_account: {:?}", address);
     // match ApiService::get_account_balance(&scan_account.address).await {
