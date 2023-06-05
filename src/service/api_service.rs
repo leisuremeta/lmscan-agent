@@ -1,6 +1,6 @@
 use std::{time::Duration, collections::HashMap};
 
-use crate::{transaction::TransactionWithResult, model::{node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block};
+use crate::{transaction::TransactionWithResult, model::{node_status::NodeStatus, balance_info::BalanceInfo, account_info::AccountInfo, nft_state::NftState, nft_balance_info::NftBalanceInfo}, block::Block, library::common::is_not_found_err};
 use lazy_static::lazy_static;
 use log::info;
 use tokio::time::sleep;
@@ -13,7 +13,7 @@ lazy_static! {
 
 static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-// static BASE_URI: &str = "http://localhost:8080";
+// static BASE_URI: &str = "http://localhost:8081";
 
 pub struct ApiService;
 
@@ -224,6 +224,8 @@ impl ApiService {
     None
   } 
 
+
+
   pub async fn get_node_status_always() -> NodeStatus {
     Self::get_request_always(format!("{BASE_URI}/status")).await
   }
@@ -240,8 +242,34 @@ impl ApiService {
     Self::get_request_with_json_always(format!("{BASE_URI}/tx/{hash}")).await
   }  
   
-  pub async fn get_account_balance(hash: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-    Self::get_request(format!("{BASE_URI}/balance/{hash}?movable=free")).await
+  pub async fn get_account_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
+    loop {
+      match CLIENT.get(format!("{BASE_URI}/balance/{address}?movable=free")).send().await {
+        Ok(res) => match res.text().await  {
+          Ok(payload) => {
+            let value: Result<HashMap<String, BalanceInfo>, serde_json::Error> = serde_json::from_str(&payload);
+            return match value {
+              Ok(val) => Ok(Some(val)),
+              Err(err) => {
+                if is_not_found_err(&payload) {
+                  Ok(None)
+                } else {
+                  Err(err.to_string())
+                }
+              },
+            }
+          },
+          Err(err) => {
+            let error = err.to_string();
+            panic!("{error}");
+          },
+        },
+        Err(err) => {
+          println!("get_request '{address}' http communication err occured: '{err}'"); 
+          // Err(format!("3: {}",err.to_string()))
+        },
+      }
+    }
   }
   
   pub async fn get_account_always(address: &str) -> AccountInfo {

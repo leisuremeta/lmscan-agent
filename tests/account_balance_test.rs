@@ -1,6 +1,6 @@
-use std::{fs::File, path::Path, io::Write, collections::HashMap};
+use std::{fs::File, path::Path, io::Write};
 
-use lmscan_agent::{entity::account_entity, service::api_service::ApiService, model::balance_info::BalanceInfo};
+use lmscan_agent::{entity::account_entity, service::api_service::ApiService};
 use dotenvy::{dotenv, var};
 use lmscan_agent::library::common::db_connn;
 use sea_orm::*;
@@ -28,12 +28,12 @@ async fn account_balance_test() {
     let address = scan_account.address.clone();
     println!("scan_account: {:?}", address);
     // match ApiService::get_account_balance(&scan_account.address).await {
-    match ApiService::get_request_until::<String, Option<HashMap<String, BalanceInfo>>>(format!("http://lmc.leisuremeta.io/balance/{address}?movable=free") , 100).await {
+    match ApiService::get_account_balance(&address).await.ok() {
       Some(block_account_balance_opt) => {
-        // if block_account_balance_opt.is_none() {
-        //   println!("balance doesn't exist '{}'", scan_account.address);
-        //   continue;
-        // }
+        if block_account_balance_opt.is_none() {
+          println!("balance doesn't exist '{}'", scan_account.address);
+          continue;
+        }
 
         let block_account_balance = block_account_balance_opt.unwrap();
         if let Some(block_info) = block_account_balance.get("LM") {
