@@ -664,13 +664,13 @@ async fn block_check_loop(db: DatabaseConnection, sled: Arc<Db>) {
     
     loop {
       println!("block_check_loop start");
-      let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
-      let ref node_status = ApiService::get_node_status_always().await;
-      save_diff_state_proc(node_status.best_hash.clone(), download_start_block.hash, &db).await;
-
+      // let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
       // let ref node_status = ApiService::get_node_status_always().await;
-      // let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      // save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
+      // save_diff_state_proc(node_status.best_hash.clone(), download_start_block.hash, &db).await;
+
+      let ref node_status = ApiService::get_node_status_always().await;
+      let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
+      save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
       account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
