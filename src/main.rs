@@ -658,8 +658,7 @@ async fn build_saved_state_proc
 
 async fn block_check_loop(db: DatabaseConnection, sled: Arc<Db>) {
   tokio::spawn(async move {
-    // let mut account_balance_info = get_account_balance_infos(&db).await;
-    let mut account_balance_info = HashMap::new();
+    let mut account_balance_info = get_account_balance_infos(&db).await;
     let mut nft_owner_info = get_nft_owner_infos(&db).await;
     account_balance_info = build_saved_state_proc(&db, sled.clone(), account_balance_info, &mut nft_owner_info).await;
     
