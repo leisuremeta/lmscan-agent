@@ -37,7 +37,7 @@ async fn balance_local_build() {
         .open()
         .unwrap()
     );
-    
+
   let mut output_file = File::create(Path::new("prod_balance_local_build.txt"))
                                     .expect("cannot open output file");
   output_file.write(format!("address, blc_balance, scan_balance, equal, diff\n").as_bytes()).expect("write failed");
@@ -52,31 +52,30 @@ async fn balance_local_build() {
     // let scan_addr = &scan_account.address;
     // if let Some(scan_balance) = build_result.get(scan_addr) {
       // println!("{count} - scan {key} - {scan_balance}");
-      // 8081
-      match ApiService::get_account_balance(&scan_addr).await {
-        Ok(block_account_balance_opt) => {
-          if block_account_balance_opt.is_none() {
-            println!("balance doesn't exist '{}'", scan_addr);
-            continue;
-          }
-
-          let block_account_balance = block_account_balance_opt.unwrap();
-          if let Some(block_info) = block_account_balance.get("LM") {
-            println!("block_info.total_amount: {}", block_info.total_amount);
-            let line = format!("{}, {}, {}, {}, {}\n", 
-                      scan_addr, 
-                      block_info.total_amount,
-                      scan_balance,
-                      block_info.total_amount.clone() == scan_balance.clone(),
-                      if block_info.total_amount.clone() > scan_balance.clone() { block_info.total_amount.clone() - scan_balance.clone() } else { scan_balance.clone() - block_info.total_amount.clone() }
-                    );
-            output_file.write(line.as_bytes()).expect("write failed");
-          }
+    // 8081
+    match ApiService::get_account_balance(&scan_addr).await {
+      Ok(block_account_balance_opt) => {
+        if block_account_balance_opt.is_none() {
+          println!("balance doesn't exist '{}'", scan_addr);
+          continue;
         }
-        Err(err) => println!("request err: {err}")
+
+        let block_account_balance = block_account_balance_opt.unwrap();
+        if let Some(block_info) = block_account_balance.get("LM") {
+          println!("block_info.total_amount: {}", block_info.total_amount);
+          let line = format!("{}, {}, {}, {}, {}\n", 
+                    scan_addr, 
+                    block_info.total_amount,
+                    scan_balance,
+                    block_info.total_amount.clone() == scan_balance.clone(),
+                    if block_info.total_amount.clone() > scan_balance.clone() { block_info.total_amount.clone() - scan_balance.clone() } else { scan_balance.clone() - block_info.total_amount.clone() }
+                  );
+          output_file.write(line.as_bytes()).expect("write failed");
+        }
       }
+      Err(err) => println!("request err: {err}")
     }
-  // }
+  }
 }
 
 async fn build_saved_state_proc 
@@ -192,7 +191,7 @@ async fn build_saved_state_proc
     update_all_account_balance_info(this_time_updated_balance_accounts);
 
     account_balance_info = cloned_account_balance_info;
-    sled.flush_async().await.unwrap();
+    sled.flush().unwrap();
 
   } 
   account_balance_info
@@ -204,21 +203,6 @@ fn update_all_account_balance_info(account_balance_info: HashMap<String, BigDeci
   let balance_info = account_balance_info.iter()
                                           .map(|(address, balance)| format!("('{address}',{balance})"))
                                           .collect::<Vec<String>>().join(",");
-
-  match account_balance_info.get("99492bc6664940e36cf21c7a33868a7bfded29e8") {
-    Some(value) => {
-      println!("1 - 99492bc6664940e36cf21c7a33868a7bfded29e8 - {value}");
-      println!("balance_info - {balance_info}");
-    },
-    None => (),
-  };
-  match account_balance_info.get("cccf6911e96ce1fa87e0757afb464a6929c8e8eb") {
-    Some(value) => {
-      println!("1 - cccf6911e96ce1fa87e0757afb464a6929c8e8eb - {value}");
-      println!("balance_info - {balance_info}");
-    },
-    None => (),
-  };
 }
 // async fn build_saved_state_proc0 
 // (

@@ -325,11 +325,11 @@ async fn firstly_save_all_create_event(create_account_event_opt: Option<Addition
 
   match create_account_event_opt {
     Some(AdditionalEntity::CreateAccount(vec)) if !vec.is_empty() => { 
-      match account_entity::Entity::insert_many(vec)
+      match account_entity::Entity::insert_many(vec.clone())
                                   .on_conflict(OnConflict::column(account_entity::Column::Address).do_nothing().to_owned())
                                   .exec(&txn).await.err() {
         Some(err) if err != DbErr::RecordNotInserted => {
-          // println!("{:?}", vec);
+          info!("create_account_event: {:?}", vec);
           panic!("create_account_event_opt firstly_save_all_create_event: {err}");
           error!("save_all_create_account: {err}");
         }
@@ -372,15 +372,6 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
   let balance_info = account_balance_info.iter()
                                           .map(|(address, balance)| format!("('{address}',{balance})"))
                                           .collect::<Vec<String>>().join(",");
-     
-  // let query = format!(
-    // r#"update account
-    //   set balance = nv.balance
-    //   from 
-    //     ( values 
-    //       {balance_info} 
-    //     ) as nv (address, balance)
-    //   where account.address = nv.address;"#);
 
   let query = format!(
     r#"INSERT INTO account (address,balance)
@@ -393,7 +384,7 @@ async fn update_all_account_balance_info(account_balance_info: HashMap<String, B
   let record_affected = match db.execute(Statement::from_string(DatabaseBackend::Postgres,query.to_owned())).await {
     Ok(result) => result.rows_affected() as usize,
     Err(err) => {
-      error!("update_all_account_balance_info fail :{err}");
+      error!("update_all_account_balance_info fail {balance_info}:{err}");
       0
     },
   };
@@ -509,11 +500,13 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
     block_states.push(block_state);
     
     
-    for tx_hash in &block.transaction_hashes {
-      let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
-      let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
-      txs.push(tx_state);
-    }  
+    if block.header.number != 1468 {
+      for tx_hash in &block.transaction_hashes {
+        let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
+        let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
+        txs.push(tx_state);
+      }  
+    }
     
     block_counter += 1;
     curr_block_hash = block.header.parent_hash.clone();
