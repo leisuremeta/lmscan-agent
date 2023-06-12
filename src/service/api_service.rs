@@ -242,20 +242,28 @@ impl ApiService {
     Self::get_request_with_json_always(format!("{BASE_URI}/tx/{hash}")).await
   }  
   
-  pub async fn get_account_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
+  pub async fn get_free_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
+    Self::get_balance(address, "free").await
+  }
+
+  pub async fn get_locked_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
+    Self::get_balance(address, "locked").await
+  }
+
+
+  pub async fn get_balance(address: &str, movable: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
     loop {
-      match CLIENT.get(format!("{BASE_URI}/balance/{address}?movable=free")).send().await {
+      match CLIENT.get(format!("{BASE_URI}/balance/{address}?movable={movable}")).send().await {
         Ok(res) => match res.text().await  {
           Ok(payload) => {
             let value: Result<HashMap<String, BalanceInfo>, serde_json::Error> = serde_json::from_str(&payload);
-            return match value {
-              Ok(val) => Ok(Some(val)),
+            match value {
+              Ok(val) => return Ok(Some(val)),
               Err(err) => {
                 if is_not_found_err(&payload) {
-                  Ok(None)
-                } else {
-                  Err(err.to_string())
-                }
+                  return Ok(None)
+                } 
+                println!("get_account_balance response error: {}", err.to_string())
               },
             }
           },
@@ -271,6 +279,7 @@ impl ApiService {
       }
     }
   }
+
   
   pub async fn get_account_always(address: &str) -> AccountInfo {
     Self::get_request_always(format!("{BASE_URI}/account/{address}")).await

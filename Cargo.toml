@@ -28,6 +28,7 @@ async_once = "0.2.6"
 lazy_static = "1.4.0"
 rayon = "1.7"
 sled = { version = "0.34.7", features = ["compression"] }
+once_cell = "1.18.0"
 
 [dependencies.sea-orm]
 version = "0.11.0"

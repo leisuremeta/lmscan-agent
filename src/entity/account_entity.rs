@@ -1,4 +1,3 @@
-use rust_decimal_macros::dec;
 use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
@@ -10,8 +9,8 @@ use crate::transaction::{CreateAccount, Extract};
 pub struct Model {
   #[sea_orm(primary_key)]
   pub address: String,
-  pub balance: BigDecimal,
-  pub amount: rust_decimal::Decimal,
+  // pub balance: BigDecimal,
+  // pub amount: rust_decimal::Decimal,
   pub event_time: i64,
   pub created_at: i64,
 }
@@ -27,8 +26,8 @@ impl Model {
   pub fn from(tx: &CreateAccount) -> ActiveModel {
     ActiveModel {
         address: Set(tx.account.to_owned()),
-        balance: Set(BigDecimal::from(0)),
-        amount: Set(dec!(0.0)),
+        // balance: Set(BigDecimal::from(0)),
+        // amount: Set(dec!(0.0)),
         event_time: Set(as_timestamp(&tx.created_at)),
         created_at: Set(now()),
     }

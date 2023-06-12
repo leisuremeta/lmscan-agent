@@ -1,4 +1,4 @@
-use std::{time::Duration, collections::HashMap};
+use std::{time::Duration, collections::HashMap, path::PathBuf};
 use log::LevelFilter;
 use sea_orm::{DatabaseConnection, ConnectOptions, Database};
 use serde_json::{value::RawValue};
@@ -8,6 +8,7 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Deserializer};
 use bigdecimal::{BigDecimal};
 use std::str::FromStr;
+
 
 pub async fn db_connn(database_url: String) -> DatabaseConnection {
   let mut opt = ConnectOptions::new(database_url.to_string());
@@ -75,3 +76,10 @@ where
 pub fn is_not_found_err(msg: &str) -> bool {
   msg.contains("not found")
 }
+
+pub fn as_path_buf(sled_path: &str) -> PathBuf {
+  let mut path = std::env::current_dir().unwrap();
+  path.push(sled_path);
+  path
+}
+

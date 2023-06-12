@@ -3,7 +3,7 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity, service::finder_service::Finder};
 use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
 use lmscan_agent::transaction::Common;
 
@@ -144,8 +144,9 @@ async fn filter_double_spend_other_tx() {
   
     for input_tx_hash in inputs {
       // let input_tx = ApiService::get_tx_always(&input_tx_hash).await;
-      let input_tx_state = tx_state::Entity::find_by_id(input_tx_hash.clone()).one(db).await.unwrap().unwrap();
-      let input_tx: TransactionWithResult = serde_json::from_str(&input_tx_state.json).unwrap();
+      // let input_tx_state = tx_state::Entity::find_by_id(input_tx_hash.clone()).one(db).await.unwrap().unwrap();
+      // let input_tx: TransactionWithResult = serde_json::from_str(&input_tx_state.json).unwrap();
+      let input_tx = Finder::transaction_with_result(&input_tx_hash).await;
       let input_signer = input_tx.signed_tx.sig.account;
       let input_tx_outputs = match input_tx.signed_tx.value.clone() {
         Transaction::RewardTx(tx) => match tx {
