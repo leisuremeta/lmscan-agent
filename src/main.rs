@@ -1,4 +1,6 @@
 use std::collections::{HashSet, HashMap};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use std::vec;
 
@@ -117,7 +119,7 @@ async fn get_total_accounts(db: &DatabaseConnection) -> Option<i64> {
   }
 }
 
-async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, Balance> {
+async fn get_balance_infos(db: &DatabaseConnection) -> HashMap<String, Balance> {
   let balances = balance_entity::Entity::find().all(db).await.unwrap();
   balances.into_iter()
           .map(|b| (b.address.clone(), Balance::new(b.free, b.locked)))
@@ -125,8 +127,8 @@ async fn get_account_balance_infos(db: &DatabaseConnection) -> HashMap<String, B
 }
 
 async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String> {
-  let nft_files = nft_file::Entity::find().all(db).await.unwrap();
-  nft_files.into_iter().map(|nft| (nft.token_id, nft.owner)).collect::<HashMap<String, String>>()
+  let nft_owners = nft_owner::Entity::find().all(db).await.unwrap();
+  nft_owners.into_iter().map(|nft| (nft.token_id, nft.owner)).collect::<HashMap<String, String>>()
 }
 
 async fn get_newly_accumumlated_tx_json_size(db: &DatabaseConnection, last_summary_opt: Option<summary::Model>) -> Option<i64> {
@@ -521,11 +523,13 @@ async fn save_diff_state_proc(mut curr_block_hash: String, target_hash: String, 
     let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
     block_states.push(block_state);
     
-    for tx_hash in &block.transaction_hashes {
-      let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
-      let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
-      txs.push(tx_state);
-    }  
+    if block.header.number != 1468 {
+      for tx_hash in &block.transaction_hashes {
+        let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
+        let tx_state = tx_state::Model::from(tx_hash.as_str(), curr_block_hash.as_str(), &tx_result, json);
+        txs.push(tx_state);
+      }  
+    }
     
     block_counter += 1;
     curr_block_hash = block.header.parent_hash.clone();
@@ -668,7 +672,7 @@ async fn build_saved_state_proc
 
 async fn block_check_loop(db: DatabaseConnection) {
   tokio::spawn(async move {
-    let mut balance_info = get_account_balance_infos(&db).await;
+    let mut balance_info = get_balance_infos(&db).await;
     let mut nft_owner_info = get_nft_owner_infos(&db).await;
     balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
     loop {
@@ -700,6 +704,8 @@ async fn main() {
 
   let db = db_connn(database_url).await;
   Finder::init(db.clone());
+
+  let is_build_status = Arc::new(AtomicBool::new(false));
 
   tokio::join!(
     summary_loop(db.clone(), coin_market_api_key),

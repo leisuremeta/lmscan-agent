@@ -1640,6 +1640,16 @@ impl ExtractEntity for Transaction {
             },
             None => { store.insert(AdditionalEntityKey::CreateNftFile, AdditionalEntity::CreateNftFile(vec![nft_file])); },
           };
+          
+          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: tx.output.clone() };
+          match store.get_mut(&AdditionalEntityKey::UpdateNftFile) {
+            Some(v) => match v { 
+              AdditionalEntity::UpdateNftFile(vec) => vec.push(upd_nft_file.clone()),
+              _ => (),
+            },
+            None => { store.insert(AdditionalEntityKey::UpdateNftFile, AdditionalEntity::UpdateNftFile(vec![upd_nft_file])); },
+          };
+          
 
           let nft_tx = nft_tx::Model::from(tx, tx_entity);
           match store.get_mut(&AdditionalEntityKey::NftTx) {

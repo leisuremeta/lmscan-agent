@@ -1,17 +1,19 @@
 use sea_orm::entity::prelude::*;
+use sea_orm::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "balance")]
+
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[sea_orm(table_name = "nft_owner")]
 pub struct Model {
   #[sea_orm(primary_key)]
-  pub address: String,
-  pub free: BigDecimal,
-  pub locked: BigDecimal,
+  pub token_id: String,
+  pub owner: String,
+  
+  pub event_time: i64,
   pub created_at: i64,
-  pub updated_at: i64,
 }
+
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
-
