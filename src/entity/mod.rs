@@ -8,3 +8,5 @@ pub mod balance_entity;
 pub mod account_entity;
 pub mod summary;
 pub mod nft_owner;
+pub mod block_daily;
+pub mod state_daily;

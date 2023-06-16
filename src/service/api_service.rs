@@ -10,10 +10,9 @@ lazy_static! {
   static ref CLIENT: reqwest::Client = reqwest::Client::new();
 }
 
-
-static BASE_URI: &str = "http://lmc.leisuremeta.io";
+// static BASE_URI: &str = "http://lmc.leisuremeta.io";
 // static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-// static BASE_URI: &str = "http://localhost:8081";
+static BASE_URI: &str = "http://localhost:8081";
 
 pub struct ApiService;
 

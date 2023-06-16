@@ -3,7 +3,7 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity, service::finder_service::Finder};
+use lmscan_agent::{library::common::{db_connn, as_json_byte_vec}, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity, service::finder_service::Finder};
 use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
 use lmscan_agent::transaction::Common;
 
@@ -99,7 +99,7 @@ async fn sum_diff() {
     output_file.write(format!("{signer}, {hash}, {sub_type}, {output_sum}, {inequality_sign}, {input_sum}, {diff}\n").as_bytes()).unwrap();
     
     spent_txs.extend(tx_res.input_hashs());
-    sled.insert(signer.as_bytes(), serde_json::to_vec(&spent_txs).unwrap()).unwrap();
+    sled.insert(signer.as_bytes(), as_json_byte_vec(&spent_txs)).unwrap();
   }       
 }        
 
@@ -140,7 +140,7 @@ async fn filter_double_spend_other_tx() {
     let tx_res = tx_res.clone();
     let sub_type = extract_subtype(&tx_res);
     
-    let inputs = input_txs(&tx_res.signed_tx.value);
+    let inputs = tx_res.input_hashs();
   
     for input_tx_hash in inputs {
       // let input_tx = ApiService::get_tx_always(&input_tx_hash).await;
@@ -293,7 +293,7 @@ async fn balance_build_history() {
       output_file.write(format!("{signer},{hash},{sub_type},{output_sum},{inequality_sign},{input_sum},{diff}\n").as_bytes()).unwrap();
       
       spent_txs.extend(tx_res.input_hashs());
-      sled.insert(signer.as_bytes(), serde_json::to_vec(&spent_txs).unwrap()).unwrap();
+      sled.insert(signer.as_bytes(), as_json_byte_vec(&spent_txs)).unwrap();
     }       
   }        
 }
@@ -364,29 +364,10 @@ fn output_sum_in_latest_tx(tx_res: &TransactionWithResult) -> BigDecimal {
     .unwrap_or(BigDecimal::from(0))
 }
 
-fn input_txs(tx: &Transaction) -> Vec<String> {
-  match tx.clone() {
-    Transaction::RewardTx(tx) => match tx {
-      RewardTx::OfferReward(t) => t.inputs,
-      RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-      RewardTx::ExecuteReward(t) => vec![],
-      _ => vec![],
-    },
-    Transaction::TokenTx(tx) => match tx {
-      TokenTx::TransferFungibleToken(t) => t.inputs,
-      TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
-      TokenTx::EntrustFungibleToken(t) =>  t.inputs,
-      TokenTx::BurnFungibleToken(t) => t.inputs,
-      TokenTx::MintFungibleToken(_) =>  vec![], 
-      _ => vec![],
-    },
-    _ => vec![],
-  }
-}
 
 async fn input_sum_in_latest_tx(tx_res: &TransactionWithResult, db: &DatabaseConnection) -> BigDecimal {
   let from_account = &tx_res.signed_tx.sig.account;
-  let inputs = input_txs(&tx_res.signed_tx.value);
+  let inputs = tx_res.input_hashs();
   
   let mut output_sum: BigDecimal = BigDecimal::from(0);
   for input_tx_hash in inputs {

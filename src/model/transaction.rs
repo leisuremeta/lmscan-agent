@@ -7,7 +7,7 @@ use std::collections::{HashSet, HashMap};
 use std::fmt::Debug;
 extern crate chrono;
 use crate::service::api_service::ApiService;
-use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
+use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map, as_vec};
 use crate::service::finder_service::Finder;
 use crate::store::locked_balance::LockedBalanceStore;
 use crate::{nft_file, nft_tx, account_entity};
@@ -170,7 +170,7 @@ pub struct ExecuteOwnershipReward {
   #[serde(rename = "tokenDefinitionId")]
   pub definition_id: String,
   #[serde(rename = "inputs")]
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(rename = "targets")]
   pub targets: Vec<String>,
 }
@@ -183,7 +183,7 @@ pub struct OfferReward {
   pub created_at: String,
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
@@ -274,7 +274,7 @@ pub struct EntrustFungibleToken {
   pub definition_id: String,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   pub to: String,
 }
 
@@ -288,7 +288,7 @@ pub struct BurnFungibleToken {
   pub definition_id: String,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -314,7 +314,7 @@ pub struct TransferFungibleToken {
   pub created_at: String,
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
@@ -426,7 +426,7 @@ pub struct DisposeEntrustedFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
 }
@@ -634,7 +634,7 @@ impl Common for OfferReward {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(output_vals)),
       json: Set(json),
     }
@@ -708,7 +708,7 @@ impl Common for ExecuteOwnershipReward {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(self.inputs.clone().into_iter().collect())),
       output_vals: Set(output_vals),
       json: Set(json),
     }
@@ -786,7 +786,7 @@ impl Common for EntrustFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(vec![self.to.to_owned() + "/" + &self.amount.to_string()])),
       json: Set(json),
     }
@@ -808,7 +808,7 @@ impl Common for BurnFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(vec![from_account + "/" + &self.amount.to_string()])),
       json: Set(json),
     }
@@ -866,7 +866,7 @@ impl Common for TransferFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(output_vals),
       json: Set(json),
     }
@@ -984,7 +984,7 @@ impl Common for DisposeEntrustedFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(output_vals)),
       json: Set(json),
     }
@@ -1353,7 +1353,7 @@ pub trait Job {
   async fn update_account_balance_info(&self, info: &mut HashMap<String, Balance>, account_input_txs: &HashSet<String>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
   fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>);
-  fn input_hashs(&self) -> Vec<String>;
+  fn input_hashs(&self) -> HashSet<String>;
 }
 
 #[async_trait]
@@ -1373,45 +1373,29 @@ impl Job for TransactionWithResult {
     updated_accouts
   }
   
-  fn input_hashs(&self) -> Vec<String> {
+  fn input_hashs(&self) -> HashSet<String> {
     match self.signed_tx.value.clone() {
       Transaction::RewardTx(tx) => match tx {
         RewardTx::OfferReward(t) => t.inputs,
         RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-        RewardTx::ExecuteReward(_) => vec![],
-        _ => vec![],
+        RewardTx::ExecuteReward(_) => HashSet::new(),
+        _ => HashSet::new(),
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::TransferFungibleToken(t) => t.inputs,
         TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
         TokenTx::EntrustFungibleToken(t) =>  t.inputs,
         TokenTx::BurnFungibleToken(t) => t.inputs,
-        _ => vec![],
+        _ => HashSet::new(),
       },
-      _ => vec![],
+      _ => HashSet::new(),
     }
+    .into_iter()
+    .collect()
   }
   
   fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>)  {
-    fn input_txs(tx: &Transaction) -> Vec<String> {
-      match tx.clone() {
-        Transaction::RewardTx(tx) => match tx {
-          RewardTx::OfferReward(t) => t.inputs,
-          RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-          RewardTx::ExecuteReward(_) => vec![],
-          _ => vec![],
-        },
-        Transaction::TokenTx(tx) => match tx {
-          TokenTx::TransferFungibleToken(t) => t.inputs,
-          TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
-          TokenTx::EntrustFungibleToken(t) =>  t.inputs,
-          TokenTx::BurnFungibleToken(t) => t.inputs,
-          _ => vec![],
-        },
-        _ => vec![],
-      }
-    }
-    let input_hashs = input_txs(&self.signed_tx.value).into_iter().collect::<HashSet<String>>();
+    let input_hashs = self.input_hashs().into_iter().collect::<HashSet<String>>();
     let signer = self.signed_tx.sig.account.clone();
     match info.get_mut(&signer) {
       Some(hashs) => hashs.extend(input_hashs),
@@ -1491,7 +1475,7 @@ impl Job for TransactionWithResult {
         RewardTx::ExecuteReward(_) => 
           match self.result.clone().unwrap() {
             TransactionResult::ExecuteRewardResult(res) => 
-              Some((Some(res.outputs), vec![])),
+              Some((Some(res.outputs), HashSet::new())),
             _ => None,
           },
         _ => None,
@@ -1500,7 +1484,7 @@ impl Job for TransactionWithResult {
         TokenTx::TransferFungibleToken(t) =>
           Some((Some(t.outputs), t.inputs)),
         TokenTx::MintFungibleToken(t) =>
-          Some((Some(t.outputs), vec![])),
+          Some((Some(t.outputs), HashSet::new())),
         TokenTx::DisposeEntrustedFungibleToken(t) => { 
           // DISPOSE LOCKED BALANCE
           let unspent_inputs = t.inputs.into_iter().filter(|input_hash| !LockedBalanceStore::contains(input_hash));
@@ -1513,7 +1497,7 @@ impl Job for TransactionWithResult {
             }
           }
 
-          Some((Some(t.outputs), vec![]))
+          Some((Some(t.outputs), HashSet::new()))
         }  
         TokenTx::EntrustFungibleToken(t) =>  { 
           let remainder = match (&self.result).as_ref().unwrap() {
@@ -1607,8 +1591,9 @@ pub struct UpdateNftFile {
 #[async_trait]
 impl ExtractEntity for Transaction {
   fn is_locked_fungible_tx(&self) -> bool {
-    if let Transaction::TokenTx(TokenTx::EntrustFungibleToken(_) | TokenTx::DisposeEntrustedFungibleToken(_))
-     = self {
+    if let Transaction::TokenTx(TokenTx::EntrustFungibleToken(_) | 
+                                TokenTx::DisposeEntrustedFungibleToken(_)
+                               ) = self {
       return true
     }
     false

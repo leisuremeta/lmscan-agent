@@ -2,7 +2,7 @@ use std::{fs::File, path::Path, io::Write};
 
 
 use itertools::Itertools;
-use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Common, RewardTx, Transaction, TokenTx}, tx_state};
+use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Common, RewardTx, Transaction, TokenTx, Job}, tx_state};
 use dotenvy::{var};
 use lmscan_agent::library::common::db_connn;
 use sea_orm::*;
@@ -48,23 +48,7 @@ async fn fungible_tx_tracking() {
                .sorted_by_key(|(_, tx)| tx.signed_tx.value.created_at());
   
   for (hash, tx_res) in tx_results.clone() {
-    let inputs: Vec<String> = match tx_res.signed_tx.value.clone() {
-      Transaction::RewardTx(tx) => match tx {
-        RewardTx::OfferReward(t) => t.inputs,
-        RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-        RewardTx::ExecuteReward(_) => vec![],
-        _ => vec![],
-      },
-      Transaction::TokenTx(tx) => match tx {
-        TokenTx::TransferFungibleToken(t) =>  t.inputs,
-        TokenTx::MintFungibleToken(_) => vec![], 
-        TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
-        TokenTx::EntrustFungibleToken(t) => t.inputs,
-        TokenTx::BurnFungibleToken(t) => t.inputs,
-        _ => vec![],
-      },
-      _ => vec![]
-    };
+    let inputs = tx_res.input_hashs();
     
     let json = serde_json::to_string_pretty(&tx_res).unwrap();
     output_file.write(format!("LATEST TX\n").as_bytes()).unwrap();
