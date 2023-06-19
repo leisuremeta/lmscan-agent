@@ -21,6 +21,8 @@ lazy_static! {
 // 1] input Hashs   - HashMap<i64, HashMap<String, HashSet<String>>>
 // 2] total balance - HashMap<i64, HashMap<String, BigDecimal>>
 
+// 주석추가.
+
 pub struct FreeBalanceStore {}
 
 impl SledStore for FreeBalanceStore {
