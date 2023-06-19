@@ -603,10 +603,6 @@ async fn build_saved_state_proc
         }
       }
 
-      // if snapshot_stage == block.header.number {
-      //   FreeBalanceStore::snapshots_of();
-      // }
-
     }
 
     let updated_nft_owners = extract_updated_nft_owners(&nft_owner_info, transfered_nft_token_ids);
@@ -659,7 +655,7 @@ async fn block_check_loop(db: DatabaseConnection) {
 
       let ref node_status = ApiService::get_node_status_always().await;
       let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      save_diff_state_proc("91e35be6d4b2a3c7f341566c412e32fe21b3351a55e4b44e294ce151b8eea4d3".to_owned(), target_hash, &db).await;
+      save_diff_state_proc("8fe7d8ca010a3613341a1426a842005e3b27699d3d7a5a446e6cb644589d8a21".to_owned(), target_hash, &db).await;
             
       balance_info = build_saved_state_proc(&db,balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;

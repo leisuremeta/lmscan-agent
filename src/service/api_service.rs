@@ -223,8 +223,6 @@ impl ApiService {
     None
   } 
 
-
-
   pub async fn get_node_status_always() -> NodeStatus {
     Self::get_request_always(format!("{BASE_URI}/status")).await
   }

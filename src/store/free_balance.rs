@@ -16,6 +16,7 @@ lazy_static! {
   static ref TEMP_INPUT_WAL: DashMap<i64, HashMap<String, HashSet<String>>> = DashMap::new();
   static ref INPUT_WAL: Db = init(as_path_buf("sled/free/wal/input_tx"));
 }
+
 // 마지막 50번째 블록.
 // 1] input Hashs   - HashMap<i64, HashMap<String, HashSet<String>>>
 // 2] total balance - HashMap<i64, HashMap<String, BigDecimal>>
@@ -26,7 +27,6 @@ impl SledStore for FreeBalanceStore {
   fn spent_hashs(account_addr: &str) -> HashSet<String> {
     let value = TOTAL_INPUT.get(account_addr).unwrap_or_default().unwrap_or_default();
     // serde_json::from_slice::<HashSet<String>>(&value).unwrap_or_else(|_| HashSet::new());
-    println!("spent_hashs - value: {:?}", value);
     from_ivec(&value)
   }
 
