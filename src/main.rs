@@ -24,7 +24,8 @@ use lmscan_agent::summary;
 use lmscan_agent::block_state::{Entity as BlockState};
 use lmscan_agent::tx_state::{Entity as TxState};
 use lmscan_agent::tx_entity::{Entity as TxEntity};
-use lmscan_agent::block_entity::Entity as BlockEntity;
+use lmscan_agent::block_entity::{Entity as BlockEntity, Model as BlockModel};
+
 use lmscan_agent::library::common::*;
 use lmscan_agent::model::lm_price::LmPrice;
 use itertools::Itertools; 
@@ -336,16 +337,25 @@ async fn update_all_nft_owner(owner_info: HashMap<String, String>, txn: &Databas
   let owner_info = owner_info.iter()
                                      .map(|(token_id, owner)| format!("('{token_id}','{owner}')"))
                                      .collect::<Vec<String>>().join(",");
+  // let query = format!(
+  //   r#"update nft_owner
+  //     set owner = nv.owner
+  //     from 
+  //       ( values 
+  //         {owner_info} 
+  //       ) as nv (token_id, owner)
+  //     where nft_owner.token_id = nv.token_id;"#);
+  
   let query = format!(
-    r#"update nft_owner
-      set owner = nv.owner
-      from 
-        ( values 
-          {owner_info} 
-        ) as nv (token_id, owner)
-      where nft_owner.token_id = nv.token_id;"#);
+    r#"INSERT INTO nft_owner (token_id,owner)
+      VALUES {owner_info}
+      ON CONFLICT (token_id) 
+      DO UPDATE 
+      SET 
+        owner = EXCLUDED.owner;"#
+    );
 
-  match txn.query_one(Statement::from_string(DatabaseBackend::Postgres, query.to_owned())).await {
+  match txn.execute(Statement::from_string(DatabaseBackend::Postgres, query.to_owned())).await {
     Err(err) => {
       error!("update_all_nft_file_owner err: {err}");
       false
@@ -361,17 +371,6 @@ async fn update_all_balance_info(balance_info: HashMap<String, Balance>, db: &Da
                                           .map(|(addr, b)| 
                                             format!("('{addr}',{},{})", b.free(), b.locked()))
                                           .collect::<Vec<String>>().join(",");
-
-  // let query = format!(
-  // r#"update balance
-  //     set 
-  //       free = nv.free,
-  //       locked = nv.locked
-  //     from 
-  //       ( values 
-  //         {balance_info} 
-  //       ) as nv (addr, free, locked)
-  //    where balance.address = nv.addr;"#);
 
   let query = format!(
     r#"INSERT INTO balance (address,free,locked)
@@ -453,7 +452,7 @@ async fn summary_loop(db: DatabaseConnection, api_key: String) {
               get_lm_price(&db, api_key.clone()).await, 
               get_total_accounts(&db).await,
               get_newly_accumumlated_tx_json_size(&db, last_summary_opt).await,
-              // TODO: add total balance that is sum of locked and free 
+              // TODO: add total balance that is sum of locked and free. 
               get_total_balance(&db).await,
             ) 
       {
@@ -538,7 +537,6 @@ async fn build_saved_state_proc
   while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await  {
     let mut curr_balance_info = prev_balance_info.clone();
     let mut tx_entities = vec![];
-    let mut block_entities = vec![];
     let mut additional_entity_store = HashMap::new();
     let mut balance_updated_accounts = HashSet::new();
     let mut transfered_nft_token_ids = HashSet::new();
@@ -573,36 +571,64 @@ async fn build_saved_state_proc
         )
         .collect();
     
-    FreeBalanceStore::temporary_snapshots_of(&curr_free_tx_signers);
-    // LockedBalanceStore::snapshots_of(&curr_free_tx_signers);
+    let snapshot_stage = block_states.first().unwrap().number as u64;
+    FreeBalanceStore::temporary_snapshot_of(&curr_free_tx_signers);
+    // LockedBalanceStore::temporary_snapshot_of();
     
-    let block_iter = 
-      block_states.into_iter()
-                  .map(|state| (parse_from_json_str::<Block>(state.json.as_str()), state));
+    let block_entities =
+      block_states
+        .into_iter()
+        .map(|state| (parse_from_json_str::<Block>(state.json.as_str()), state))
+        .map(|(block, state)| BlockModel::from(&block, state.hash.clone()))
+        .collect::<Vec<block_entity::ActiveModel>>();
 
-    for (block, block_state) in block_iter {
-      block_entities.push(block_entity::Model::from(&block, block_state.hash.clone()));
-      let snapshot_stage = ((block.header.number + 49) / 50) * 50;
-
-      if let Some(tx_states_in_block) = txs_in_block.remove(&block_state.hash) {
-        for (tx_state, tx_res) in tx_states_in_block {
-          let signer = tx_res.signed_tx.sig.account.clone();
-          let spent_txs = FreeBalanceStore::spent_hashs(&signer);
-
-          balance_updated_accounts.extend(tx_res.update_account_balance_info(&mut curr_balance_info, &spent_txs).await);
-          transfered_nft_token_ids.extend(tx_res.update_nft_owner_info(nft_owner_info));
-
-          FreeBalanceStore::merge(snapshot_stage, signer, spent_txs, tx_res.input_hashs());
-          
-          let tx = &tx_res.signed_tx.value;
-          let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account.clone(), 
-                                              tx_state.block_hash.clone(), block_state.number.clone(), 
-                                              tx_state.json.clone(), tx_res.result.clone());
-          tx.extract_additional_entity(&tx_entity, &mut additional_entity_store).await;
-          tx_entities.push(tx_entity);
-        }
+    
+    for (block_hash, number, txs) in block_entities.iter()
+          .map(|b| (b.hash.clone().unwrap(), b.number.clone().unwrap()))
+          .filter_map(|(hash, number)| 
+            txs_in_block.remove(&hash).map(|txs| (hash, number, txs))) {
+              
+      // Entity process
+      for (tx_state, tx_res) in txs.iter() {
+        let tx = &tx_res.signed_tx.value;
+        let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account.clone(), 
+                                            tx_state.block_hash.clone(), number, 
+                                            tx_state.json.clone(), tx_res.result.clone());
+        tx.extract_additional_entity(&tx_entity, &mut additional_entity_store).await;
+        tx_entities.push(tx_entity);
       }
 
+      let tx_res_vec: Vec<TransactionWithResult> = txs.into_iter().map(|(_, tx_res)| tx_res).collect();
+      // TODO: Free balance fungible txs
+      for free_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_free_fungible()) {
+        let signer = free_tx.signed_tx.sig.account.clone();
+        let spent_txs = FreeBalanceStore::spent_hashs(&signer);
+        balance_updated_accounts.extend(free_tx.update_free_balance(&mut curr_balance_info, &spent_txs).await);
+
+        let entry = curr_balance_info
+            .get_key_value(&signer)
+            .map_or(
+              (signer, BigDecimal::default()),
+              |(address, balance)| (address.clone(), balance.locked())
+            );
+        FreeBalanceStore::merge(
+          snapshot_stage, 
+          entry,
+          spent_txs,
+          free_tx.input_hashs()
+        );
+      }
+
+      // TODO: Locked balance fungible txs
+      for locked_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_locked_fungible()) {
+        locked_tx.update_locked_balance(snapshot_stage, &mut curr_balance_info).await;
+
+      }
+
+      // Nft owner transfer txs
+      for nft_tansfer_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_nft_owner_transfer()) {
+        transfered_nft_token_ids.extend(nft_tansfer_tx.update_nft_owner_info(nft_owner_info));
+      }
     }
 
     let updated_nft_owners = extract_updated_nft_owners(&nft_owner_info, transfered_nft_token_ids);
@@ -619,7 +645,7 @@ async fn build_saved_state_proc
           !update_all_nft_owner(updated_nft_owners, txn).await ||
           !update_all_balance_info(updated_balance_accounts, txn).await ||
           !finish_all_block_states(block_hashs, txn).await ||
-          !FreeBalanceStore::flush() ||
+          !FreeBalanceStore::flush() || 
           !LockedBalanceStore::flush()
         {
           return Err(DbErr::Query(RuntimeErr::Internal("Force Rollback!".to_owned())))
@@ -630,10 +656,12 @@ async fn build_saved_state_proc
     .await;
 
     if let Err(err) = save_res {
-      // panic!("save transaction process err: {err}");
-      error!("save transaction process err: {err}");
-      break;
       // TODO: break 하면 해당 block 다시 처리하는지 확인해야됨!
+      // LockedBalanceStore::rollback();
+      FreeBalanceStore::rollback(snapshot_stage);
+      error!("save transaction process err: {err}");
+      // panic!("save transaction process err: {err}");
+      break;
     } else {
       prev_balance_info = curr_balance_info;
     }
@@ -655,7 +683,7 @@ async fn block_check_loop(db: DatabaseConnection) {
 
       let ref node_status = ApiService::get_node_status_always().await;
       let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-      save_diff_state_proc("8fe7d8ca010a3613341a1426a842005e3b27699d3d7a5a446e6cb644589d8a21".to_owned(), target_hash, &db).await;
+      save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
       balance_info = build_saved_state_proc(&db,balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(5)).await;
@@ -676,7 +704,7 @@ async fn main() {
 
   let db = db_connn(database_url).await;
   Finder::init(db.clone());
-
+  // TODO: 몇번 블럭부터 빌드다시 시작할지 받을수 있는 설정 파일 만들기.
   tokio::join!(
     // summary_loop(db.clone(), coin_market_api_key),
     block_check_loop(db),

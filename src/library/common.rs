@@ -52,16 +52,18 @@ pub fn from_ivec<T: for<'a> serde::Deserialize<'a> + Default>(bytes: &IVec) -> T
     return T::default();
   }
   
+  println!("bytes: {:?}", bytes);
   match bincode::deserialize(bytes) {
     Ok(deserialized_val) => deserialized_val,
     Err(err) => {
-      eprintln!("Failed to deserialize data: {:?}", err);
+      eprintln!("Failed to deserialize data: {:?}. Make sure the serialized data is in the correct format and matches the expected type.", err);
       panic!()
     },
   }
 }
 
-pub fn as_byte_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
+
+pub fn into_byte_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
   bincode::serialize(value).unwrap()
 }
 
