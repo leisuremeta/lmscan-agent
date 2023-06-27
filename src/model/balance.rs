@@ -1,11 +1,11 @@
 use bigdecimal::BigDecimal;
 
-use crate::{library::common::now, balance_entity};
+use crate::{library::common::now, balance_entity, store::wal::State};
 
 #[derive(Clone, Debug)]
 pub struct Balance {
-  free:   BigDecimal,
-  locked: BigDecimal,
+  pub free:   BigDecimal,
+  pub locked: BigDecimal,
   upd_at: i64,
 }
 
@@ -16,6 +16,10 @@ impl Balance {
 
   pub fn from(entity: balance_entity::Model) -> Self {
     Self { free: entity.free, locked: entity.locked, upd_at: entity.updated_at }
+  }
+
+  pub fn from_state(state: State) -> Self {
+    Self { free: state.balance, locked: BigDecimal::default(), upd_at: now() }
   }
 
   pub fn default() -> Self {
@@ -48,5 +52,13 @@ impl Balance {
 
   pub fn locked(&self) -> BigDecimal {
     self.locked.clone()
+  }
+
+  pub fn new_with_locked(locked: BigDecimal) -> Self {
+    Self { free: BigDecimal::default(), locked, upd_at: now() }
+  }
+
+  pub fn new_with_free(free: BigDecimal) -> Self {
+    Self { free, locked: BigDecimal::default(), upd_at: now() }
   }
 }

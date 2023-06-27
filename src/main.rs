@@ -10,7 +10,6 @@ use lmscan_agent::service::finder_service::Finder;
 
 use lmscan_agent::store::free_balance::FreeBalanceStore;
 use lmscan_agent::store::locked_balance::LockedBalanceStore;
-use lmscan_agent::store::sled_store::SledStore;
 use lmscan_agent::transaction::{TransactionWithResult, Common, Job, AdditionalEntity, ExtractEntity, AdditionalEntityKey};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -535,7 +534,7 @@ async fn build_saved_state_proc
 {
   println!("build_saved_state_proc started");
   while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await  {
-    let mut curr_balance_info = prev_balance_info.clone();
+    let mut curr_balance_info = prev_balance_info;
     let mut tx_entities = vec![];
     let mut additional_entity_store = HashMap::new();
     let mut balance_updated_accounts = HashSet::new();
@@ -573,7 +572,7 @@ async fn build_saved_state_proc
     
     let snapshot_stage = block_states.first().unwrap().number as u64;
     FreeBalanceStore::temporary_snapshot_of(&curr_free_tx_signers);
-    // LockedBalanceStore::temporary_snapshot_of();
+    LockedBalanceStore::temporary_snapshot_of();
     
     let block_entities =
       block_states
@@ -582,13 +581,18 @@ async fn build_saved_state_proc
         .map(|(block, state)| BlockModel::from(&block, state.hash.clone()))
         .collect::<Vec<block_entity::ActiveModel>>();
 
-    
-    for (block_hash, number, txs) in block_entities.iter()
+    let mut free_state = FreeBalanceStore::log_of_snapshot_stage(snapshot_stage);
+    let mut locked_state = LockedBalanceStore::log_of_snapshot_stage(snapshot_stage);
+
+    for (number, txs) in block_entities.iter()
           .map(|b| (b.hash.clone().unwrap(), b.number.clone().unwrap()))
-          .filter_map(|(hash, number)| 
-            txs_in_block.remove(&hash).map(|txs| (hash, number, txs))) {
+          .filter_map(|(hash, number)| {
+              txs_in_block.remove(&hash)
+                          .map(|txs| (number, txs))
+          }) 
+    {
               
-      // Entity process
+      // Scan tx entity process
       for (tx_state, tx_res) in txs.iter() {
         let tx = &tx_res.signed_tx.value;
         let tx_entity = tx.from(tx_state.hash.clone(), tx_res.signed_tx.sig.account.clone(), 
@@ -599,30 +603,14 @@ async fn build_saved_state_proc
       }
 
       let tx_res_vec: Vec<TransactionWithResult> = txs.into_iter().map(|(_, tx_res)| tx_res).collect();
-      // TODO: Free balance fungible txs
+      // Free balance fungible txs
       for free_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_free_fungible()) {
-        let signer = free_tx.signed_tx.sig.account.clone();
-        let spent_txs = FreeBalanceStore::spent_hashs(&signer);
-        balance_updated_accounts.extend(free_tx.update_free_balance(&mut curr_balance_info, &spent_txs).await);
-
-        let entry = curr_balance_info
-            .get_key_value(&signer)
-            .map_or(
-              (signer, BigDecimal::default()),
-              |(address, balance)| (address.clone(), balance.locked())
-            );
-        FreeBalanceStore::merge(
-          snapshot_stage, 
-          entry,
-          spent_txs,
-          free_tx.input_hashs()
-        );
+        balance_updated_accounts.extend(free_tx.update_free_balance(&mut curr_balance_info, &mut free_state).await);
       }
 
-      // TODO: Locked balance fungible txs
+      // Locked balance fungible txs
       for locked_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_locked_fungible()) {
-        locked_tx.update_locked_balance(snapshot_stage, &mut curr_balance_info).await;
-
+        balance_updated_accounts.extend(locked_tx.update_locked_balance(&mut curr_balance_info, &mut locked_state).await);
       }
 
       // Nft owner transfer txs
@@ -645,8 +633,8 @@ async fn build_saved_state_proc
           !update_all_nft_owner(updated_nft_owners, txn).await ||
           !update_all_balance_info(updated_balance_accounts, txn).await ||
           !finish_all_block_states(block_hashs, txn).await ||
-          !FreeBalanceStore::flush() || 
-          !LockedBalanceStore::flush()
+          !FreeBalanceStore::flush(snapshot_stage, free_state) || 
+          !LockedBalanceStore::flush(snapshot_stage, locked_state)
         {
           return Err(DbErr::Query(RuntimeErr::Internal("Force Rollback!".to_owned())))
         }    
@@ -657,10 +645,10 @@ async fn build_saved_state_proc
 
     if let Err(err) = save_res {
       // TODO: break 하면 해당 block 다시 처리하는지 확인해야됨!
-      // LockedBalanceStore::rollback();
       FreeBalanceStore::rollback(snapshot_stage);
+      LockedBalanceStore::rollback();
       error!("save transaction process err: {err}");
-      // panic!("save transaction process err: {err}");
+      panic!("save transaction process err: {err}");
       break;
     } else {
       prev_balance_info = curr_balance_info;
@@ -686,7 +674,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
             
       balance_info = build_saved_state_proc(&db,balance_info, &mut nft_owner_info).await;
-      sleep(Duration::from_secs(5)).await;
+      sleep(Duration::from_secs(3)).await;
       println!("block_check_loop end");
       panic!()
     }

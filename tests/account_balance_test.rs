@@ -56,7 +56,10 @@ async fn locked() {
                                         .filter(Condition::all().add(balance_entity::Column::Free.gt(0)))
                                         .all(db)
                                         .await.unwrap();
-  let balances: Vec<(String, BigDecimal)> = balances.into_iter().filter(|b| scan_accounts.contains(&b.address)).map(|b| (b.address, b.locked)).collect();
+  let balances: Vec<(String, BigDecimal)> = balances.into_iter()
+                                                    .filter(|b| scan_accounts.contains(&b.address))
+                                                    .map(|b| (b.address, b.locked))
+                                                    .collect();
 
   let mut output_file = File::create(Path::new("locked_balance_check.txt"))
                                    .expect("cannot open output file");

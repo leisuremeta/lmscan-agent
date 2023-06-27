@@ -239,10 +239,6 @@ impl ApiService {
     Self::get_request_with_json_always(format!("{BASE_URI}/tx/{hash}")).await
   }  
 
-  pub async fn get_all_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-    Self::get_balance(address, "all").await
-  }
-  
   pub async fn get_free_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
     Self::get_balance(address, "free").await
   }

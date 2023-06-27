@@ -41,7 +41,7 @@ impl<K: Serialize + for<'a> Deserialize<'a> + Clone, V: Serialize + for<'a> Dese
     self.db.flush()
   }
 
-  pub fn contains(&self, key: &str) -> bool {
-    self.db.contains_key(key).unwrap()
+  pub fn contains(&self, key: &K) -> bool {
+    self.db.contains_key(into_byte_vec(key)).unwrap()
   }
 }
