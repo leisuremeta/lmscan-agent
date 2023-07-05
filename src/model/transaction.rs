@@ -1352,9 +1352,9 @@ pub struct NftMetaInfo {
 
 
 #[async_trait]
-pub trait Job {
-  async fn update_free_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
-  async fn update_locked_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
+pub trait TxJob {
+  async fn update_free_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
+  async fn update_locked_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
   fn input_hashs(&self) -> HashSet<String>;
   fn is_free_fungible(&self) -> bool;
@@ -1363,7 +1363,7 @@ pub trait Job {
 }
 
 #[async_trait]
-impl Job for TransactionWithResult {
+impl TxJob for TransactionWithResult {
   fn is_free_fungible(&self) -> bool {
     match &self.signed_tx.value {
       Transaction::RewardTx(tx) => matches!(tx,
@@ -1437,15 +1437,15 @@ impl Job for TransactionWithResult {
     .collect()
   }
   
-  async fn update_locked_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
+  async fn update_locked_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
     let mut updated_accounts = HashSet::new();
     match &self.signed_tx.value {
       Transaction::TokenTx(tx) => match tx { 
         TokenTx::EntrustFungibleToken(t) => {
           let from_account = &self.signed_tx.sig.account;
-          info.get_mut(from_account).map(|b| b.add_locked(&t.amount));
+          info.get_mut(from_account).map(|b| b.add_locked(&t.amount, block_number));
           let entry = info.get_key_value(from_account).map(|(k,v)|(k.clone(),v.locked())).unwrap();
-          LockedBalanceStore::insert0(state_info, entry);
+          LockedBalanceStore::insert(state_info, entry);
           updated_accounts.insert(from_account.clone());
         },
         TokenTx::DisposeEntrustedFungibleToken(t) => {
@@ -1456,9 +1456,9 @@ impl Job for TransactionWithResult {
             let input_tx = Finder::transaction_with_result(&input_hash).await;
             if let Transaction::TokenTx(TokenTx::EntrustFungibleToken(entrust)) = input_tx.signed_tx.value {
               let input_signer = input_tx.signed_tx.sig.account;
-              info.get_mut(&input_signer).map(|b| b.sub_locked(&entrust.amount));
+              info.get_mut(&input_signer).map(|b| b.sub_locked(&entrust.amount, block_number));
               let entry = info.get_key_value(&input_signer).map(|(k,v)|(k.clone(),v.locked())).unwrap();
-              LockedBalanceStore::insert(state_info, entry, input_hash.clone());
+              LockedBalanceStore::insert_with_input_hashs(state_info, entry, input_hash.clone());
               updated_accounts.insert(input_signer);
             }
           }
@@ -1470,15 +1470,16 @@ impl Job for TransactionWithResult {
     updated_accounts
   }
 
-  async fn update_free_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
+  async fn update_free_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
     // BurnFungibleToken 의 경우에는 해당이 안됨.
     fn deposit_to_accounts(
+      block_number: i64,
       outputs: &HashMap<String, BigDecimal>,
       info: &mut HashMap<String, Balance>,
     ) {
       outputs.iter().for_each(|(to_account, amount)| {
         let balance = info.entry(to_account.clone()).or_insert(Balance::default());
-        balance.add_free(amount);
+        balance.add_free(amount, block_number);
       })
     }
 
@@ -1560,7 +1561,7 @@ impl Job for TransactionWithResult {
             TransactionResult::EntrustFungibleTokenResult(res) => &res.remainder,
             _ => panic!("invalid BurnFungibleTokenResult")
           };
-          info.get_mut(from_account).map(|b| b.add_free(remainder));
+          info.get_mut(from_account).map(|b| b.add_free(remainder, block_number));
           Some((None, t.inputs))
         }
         TokenTx::BurnFungibleToken(t) => {
@@ -1568,7 +1569,7 @@ impl Job for TransactionWithResult {
             TransactionResult::BurnFungibleTokenResult(res) => &res.output_amount,
             _ => panic!("invalid BurnFungibleTokenResult")
           };
-          info.get_mut(from_account).map(|b| b.add_free(output_amount));
+          info.get_mut(from_account).map(|b| b.add_free(output_amount, block_number));
           Some((None, t.inputs))
         }
         _ => None,
@@ -1582,7 +1583,7 @@ impl Job for TransactionWithResult {
       
       // deposits to latest txs's outputs
       outputs_in_latest_opt.map(|outputs_in_latest| {
-        deposit_to_accounts(&outputs_in_latest, info);
+        deposit_to_accounts(block_number, &outputs_in_latest, info);
         for (to_account, _) in outputs_in_latest.iter() {
           FreeBalanceStore::merge(
             state_info,
@@ -1609,7 +1610,7 @@ impl Job for TransactionWithResult {
                   .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx - {:?}", 
                                             serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
                   .map(|b| { 
-                    b.sub_free(withdraw_val);
+                    b.sub_free(withdraw_val, block_number);
                   })
             }) {
               Ok(_) => withdraw_occured = true,

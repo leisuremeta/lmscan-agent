@@ -12,6 +12,12 @@ pub struct State {
   pub input_hashs: HashSet<String>,
 }
 
+#[derive(Clone, Debug)]
+pub enum StateType {
+  Free((u64, State)),
+  Locked((u64, State)),
+}
+
 impl State {
   pub fn new(balance: BigDecimal, input_hashs: HashSet<String>) -> Self {
     Self { balance, input_hashs }

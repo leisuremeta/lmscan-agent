@@ -2,7 +2,7 @@ use std::{fs::File, path::Path, io::Write};
 
 
 use itertools::Itertools;
-use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Common, RewardTx, Transaction, TokenTx, Job}, tx_state};
+use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Common, RewardTx, Transaction, TokenTx, TxJob}, tx_state};
 use dotenvy::{var};
 use lmscan_agent::library::common::db_connn;
 use sea_orm::*;

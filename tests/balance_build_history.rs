@@ -3,7 +3,7 @@ use std::{fs::{File, self}, path::Path, io::Write, collections::{HashMap, HashSe
 use bigdecimal::BigDecimal;
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::{db_connn, as_json_byte_vec}, tx_state, transaction::{TransactionWithResult, Job, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity, service::finder_service::Finder};
+use lmscan_agent::{library::common::{db_connn, as_json_byte_vec}, tx_state, transaction::{TransactionWithResult, TxJob, Transaction, RewardTx, TransactionResult, TokenTx}, account_entity, service::finder_service::Finder};
 use sea_orm::{Statement, DbBackend, EntityTrait, DatabaseConnection};
 use lmscan_agent::transaction::Common;
 

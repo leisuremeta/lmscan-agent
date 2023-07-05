@@ -7,6 +7,7 @@ pub struct Model {
   pub address: String,
   pub free: BigDecimal,
   pub locked: BigDecimal,
+  pub block_number: i64,
   pub created_at: i64,
   pub updated_at: i64,
 }

@@ -1,11 +1,12 @@
 use std::collections::{HashMap, BTreeMap, HashSet};
 
-use crate::{store::{sled_store::init, typed_sled::TypedSled}, model::balance::Balance};
+use crate::{store::{sled_store::init, typed_sled::TypedSled}};
 use bigdecimal::BigDecimal;
 use dashmap::DashSet;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 
-use super::wal::State;
+use super::wal::{State, StateType};
 
 lazy_static! {
   static ref WAL_INPUT:   TypedSled<u64, HashMap<String, State>> = TypedSled::new(init("sled/locked/wal/input_tx"));
@@ -20,20 +21,16 @@ impl LockedBalanceStore {
     TOTAL_INPUT.contains(input_hash)
   }
 
-  pub fn insert0(state_info: &mut HashMap<String, State>, entry: (String, BigDecimal)) {
+  pub fn insert(state_info: &mut HashMap<String, State>, entry: (String, BigDecimal)) {
     let (address, locked) = (entry.0, entry.1);
-
 
     state_info.entry(address.clone())
         .and_modify(|state| state.balance = locked.clone())
         .or_insert(State::new_with_iterable(locked, HashSet::new()));
-    
-    // TEMP_INPUT.insert(input_hash.clone());  // for rollback
-    // TOTAL_INPUT.insert(input_hash, ());
   }
 
 
-  pub fn insert(state_info: &mut HashMap<String, State>, entry: (String, BigDecimal), input_hash: String) {
+  pub fn insert_with_input_hashs(state_info: &mut HashMap<String, State>, entry: (String, BigDecimal), input_hash: String) {
     let (address, locked) = (entry.0, entry.1);
 
     let new_input_hash = [input_hash.clone(); 1];
@@ -74,20 +71,42 @@ impl LockedBalanceStore {
     TEMP_INPUT.clear();
   }
 
+  pub fn overwrite_total_input(input_hashs: HashSet<String>) {
+    TOTAL_INPUT.db.clear().unwrap();
+    for hash in input_hashs {
+      TOTAL_INPUT.insert(hash, ());
+    }
+    TOTAL_INPUT.flush().unwrap();
+  }
+
   // write ahead logging 
   fn wal_into_stage(stage_number: u64, state_info: HashMap<String, State>) {
     WAL_INPUT.insert(stage_number, state_info);
   }
 
-  pub fn wal_input_db() -> sled::Db {
-    WAL_INPUT.db.clone()
+  pub fn collect_log_limit(limit_block_number: u64) -> Vec<(String, StateType)> {
+    WAL_INPUT.db
+        .iter()
+        .filter_map(Result::ok)
+        .map(|(key, val)| State::from(&key, &val))
+        .collect::<BTreeMap<u64, HashMap<String, State>>>()
+        .into_iter()
+        .take_while(|(block_no, _)| *block_no <= limit_block_number)  
+        .flat_map(|(state_no, account_state)| {
+          account_state
+              .into_iter()
+              .collect::<Vec<(String, State)>>()
+              .into_iter()
+              .map(move |(addr,state)| (addr, (state_no, state)))
+        })
+        .map(|(k, v)| 
+          (
+            k, 
+            StateType::Locked(v)
+          )
+        )
+        .collect()
   }
 }
 
 
-
-#[tokio::test]
-async fn test() {
-  
-
-}

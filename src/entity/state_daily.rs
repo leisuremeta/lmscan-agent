@@ -6,9 +6,10 @@ pub struct Model {
   #[sea_orm(primary_key)]
   pub address: String,
   #[sea_orm(primary_key)]
-  pub date: String,
+  pub block_number: i64,
+
   pub free: BigDecimal,
-  pub locked: BigDecimal,
+  pub locked: BigDecimal,  
   pub created_at: i64,
 }
 

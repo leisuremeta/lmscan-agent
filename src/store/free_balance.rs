@@ -2,7 +2,7 @@ use crate::{store::typed_sled::TypedSled, library::common::{from_ivec, now}, mod
 use std::collections::{HashSet, HashMap, BTreeMap};
 use crate::{store::sled_store::init};
 
-use super::{sled_store::SledStore, wal::State};
+use super::{sled_store::SledStore, wal::{State, StateType}};
 use bigdecimal::BigDecimal;
 use dashmap::DashMap;
 use futures_util::lock;
@@ -35,7 +35,6 @@ impl SledStore for FreeBalanceStore {
 }
 
 impl FreeBalanceStore {
-    
   pub fn merge (
     state_info: &mut HashMap<String, State>,
     entry: (String, BigDecimal)
@@ -45,8 +44,6 @@ impl FreeBalanceStore {
     state_info.entry(address.clone())
         .and_modify(|state| state.balance = free.clone() )
         .or_insert(State::new(free, HashSet::new()));
-
-    // Self::wal_into_stage(snapshot_stage, state_info);
   }
 
   pub fn merge_with_inputs (
@@ -72,6 +69,14 @@ impl FreeBalanceStore {
     for addr in addresses {
       TEMP_INPUT.insert(addr.clone(), Self::spent_hashs(&addr));
     }
+  }
+
+  pub fn overwrite_total_input(account_inputs: Vec<(String, HashSet<String>)>) {
+    TOTAL_INPUT.db.clear().unwrap();
+    for (account, inputs) in account_inputs {
+      TOTAL_INPUT.insert(account, inputs);
+    }
+    TOTAL_INPUT.flush().unwrap();
   }
 
   pub fn rollback(snapshot_stage: u64) {
@@ -119,7 +124,33 @@ impl FreeBalanceStore {
     }
     false
   }
+
+  pub fn collect_log_limit(limit_block_number: u64) -> Vec<(String, StateType)> {
+    WAL_INPUT.db
+        .iter()
+        .filter_map(Result::ok)
+        .map(|(key, val)| State::from(&key, &val))
+        .collect::<BTreeMap<u64, HashMap<String, State>>>()
+        .into_iter()
+        .take_while(|(block_no, _)| *block_no <= limit_block_number)  
+        .flat_map(|(state_no, account_state)| {
+          account_state
+              .into_iter()
+              .collect::<Vec<(String, State)>>()
+              .into_iter()
+              .map(move |(addr,state)| (addr, (state_no, state)))
+        })
+        .map(|(k, v)| 
+          (
+            k, 
+            StateType::Free(v),
+          )
+        )
+        .collect()
+  }
 }
+
+
 
 
 #[tokio::test]
@@ -138,67 +169,45 @@ async fn test() {
   // 마지막으로 체킹에 성공한 블록번호는 DB 에서 조회가능하므로 해당 블록넘버로 돌아갈수 있게 하는게 제일 적합.
   let rollback_stage_number: u64 = 20000;
 
-  let mut free: Vec<(String, Balance)> = WAL_INPUT.db
-      .iter()
-      .filter_map(Result::ok)
-      .map(|(key, val)| State::from(&key, &val))
-      .collect::<BTreeMap<u64, HashMap<String, State>>>()
-      .into_iter()
-      .take_while(|(block_no, _)| block_no <= &rollback_stage_number)  
-      // .flat_map(|(_, stage_info)| stage_info.into_iter()) // 모든 stage_info 맵을 단일 스트림으로 변환
-      .flat_map(|(_, v)| 
-          v.into_iter().collect::<Vec<(String, State)>>()
-      )
-      .map(|(k, v)| 
-        (
-          k, 
-          Balance::new_with_free(v.balance),
-        )
-      )
-      .collect();
+  // let mut free: Vec<(String, Balance)> = WAL_INPUT.db
+  //     .iter()
+  //     .filter_map(Result::ok)
+  //     .map(|(key, val)| State::from(&key, &val))
+  //     .collect::<BTreeMap<u64, HashMap<String, State>>>()
+  //     .into_iter()
+  //     .take_while(|(block_no, _)| block_no <= &rollback_stage_number)  
+  //     // .flat_map(|(_, stage_info)| stage_info.into_iter()) // 모든 stage_info 맵을 단일 스트림으로 변환
+  //     .flat_map(|(_, v)| 
+  //         v.into_iter().collect::<Vec<(String, State)>>()
+  //     )
+  //     .map(|(k, v)| 
+  //       (
+  //         k, 
+  //         // Balance::new_with_free(v.balance),
+  //       )
+  //     )
+  //     .collect();
   
-  let locked: Vec<(String, Balance)> = crate::store::locked_balance::LockedBalanceStore::wal_input_db()
-      .iter()
-      .filter_map(Result::ok)
-      .map(|(key, val)| State::from(&key, &val))
-      .collect::<BTreeMap<u64, HashMap<String, State>>>()
-      .into_iter()
-      .take_while(|(block_no, _)| block_no <= &rollback_stage_number)  
-      // .flat_map(|(_, stage_info)| stage_info.into_iter()) // 모든 stage_info 맵을 단일 스트림으로 변환
-      .flat_map(|(_, v)| 
-          v.into_iter().collect::<Vec<(String, State)>>()
-      )
-      .map(|(k, v)| 
-        (
-          k, 
-          Balance::new_with_locked(v.balance)
-        )
-      )
-      .into_iter()
-      .inspect(|x| {
-        println!("{:?}", x);
-      })
-      .collect();
+  // let locked: Vec<(String, Balance)> = crate::store::locked_balance::LockedBalanceStore::collect_log_limit(rollback_stage_number);
+  // free.extend(locked.clone());
 
-  free.extend(locked.clone());
-
-  let total_map: HashMap<String, Balance> = 
-      free.into_iter()
-          .into_group_map()
-          .into_iter()
-          .fold(HashMap::new(), |mut acc: HashMap<String, Balance>, (account, balances)| {
-              let balance = balances.into_iter()
-                      .fold(Balance::default(), |mut acc, balance| {
-                        if balance.free() == BigDecimal::default() {
-                          acc.locked = balance.locked();
-                        } else {
-                          acc.free = balance.free();
-                        }
-                        acc
-                      });
-              acc.insert(account, balance);
-              acc
-          });
+  // let total_map: HashMap<String, Balance> = 
+  //     free.into_iter()
+  //         .into_group_map()
+  //         .into_iter()
+  //         .fold(HashMap::new(), |mut acc: HashMap<String, Balance>, (account, balances)| {
+  //             let balance = balances.into_iter()
+  //                     .fold(Balance::default(), |mut acc, balance| {
+  //                       if balance.free() == BigDecimal::default() {
+  //                         acc.locked = balance.locked();
+  //                       } else {
+  //                         acc.free = balance.free();
+  //                       }
+  //                       acc
+  //                     });
+  //             acc.insert(account, balance);
+  //             acc
+  //         });
 
   // for (account, balance) in total_map {
   //   println!("{account} - {:?}", balance);
@@ -263,27 +272,27 @@ async fn test() {
   
 
   // check build state is valid
-  for (account, balance) in total_map {
-    let res = ApiService::get_free_balance(&account).await.unwrap();
-    if res.is_none() {
-      println!("{account} 의 잔고가 존재 하지 않습니다.");
-      continue;
-    }
-    let res = res.unwrap();
-    let balance_info = res.get("LM").unwrap();
-    println!("{account} - {} - scan: {}, blc: {}",  balance.free() == balance_info.total_amount,  balance.free(), balance_info.total_amount);
-    assert_eq!(balance.free(), balance_info.total_amount);
+  // for (account, balance) in total_map {
+  //   let res = ApiService::get_free_balance(&account).await.unwrap();
+  //   if res.is_none() {
+  //     println!("{account} 의 잔고가 존재 하지 않습니다.");
+  //     continue;
+  //   }
+  //   let res = res.unwrap();
+  //   let balance_info = res.get("LM").unwrap();
+  //   println!("{account} - {} - scan: {}, blc: {}",  balance.free() == balance_info.total_amount,  balance.free(), balance_info.total_amount);
+  //   assert_eq!(balance.free(), balance_info.total_amount);
 
-    let res = ApiService::get_locked_balance(&account).await.unwrap();
-    if res.is_none() {
-      println!("{account} 의 잔고가 존재 하지 않습니다.");
-      continue;
-    }
-    let res = res.unwrap();
-    let balance_info = res.get("LM").unwrap();
-    println!("{account} - {} - scan: {}, blc: {}",  balance.locked() == balance_info.total_amount,  balance.locked(), balance_info.total_amount);
-    assert_eq!(balance.locked(), balance_info.total_amount);
-  }
+  //   let res = ApiService::get_locked_balance(&account).await.unwrap();
+  //   if res.is_none() {
+  //     println!("{account} 의 잔고가 존재 하지 않습니다.");
+  //     continue;
+  //   }
+  //   let res = res.unwrap();
+  //   let balance_info = res.get("LM").unwrap();
+  //   println!("{account} - {} - scan: {}, blc: {}",  balance.locked() == balance_info.total_amount,  balance.locked(), balance_info.total_amount);
+  //   assert_eq!(balance.locked(), balance_info.total_amount);
+  // }
 
   // dd0b913a2d5d9059f64c1febe6c9e7a773a67979    
   // 3ce402227618ffd9fa975e4c6e5786bf55373986

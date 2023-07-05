@@ -318,8 +318,6 @@ impl ApiService {
     res.unwrap_or_default()
   }
 
-
-
   pub async fn post_txs(txs: String) -> Result<Vec<String>, String> {
     let ref url = format!("{BASE_URI}/tx");
     match CLIENT.post(url.as_str()).header("Content-Type", "application/json").body(txs).send().await {
@@ -329,7 +327,7 @@ impl ApiService {
           let value: Result<Vec<String>, serde_json::Error> = serde_json::from_str(&payload);
           match value {
             Ok(val) => Ok(val),
-            Err(err) => {
+            Err(_) => {
               // println!("0: {}", err.to_string());
               let err_result: Result<String, _> = serde_json::from_str(&payload);
               match err_result {
