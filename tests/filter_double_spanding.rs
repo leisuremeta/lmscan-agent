@@ -2,7 +2,7 @@ use std::{fs::File, path::Path, io::Write, collections::{HashMap}};
 
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Transaction, RewardTx, TokenTx}, account_entity};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Transaction, RewardTx, TokenTx, TxJob}, account_entity};
 use sea_orm::{Statement, DbBackend, EntityTrait};
 use lmscan_agent::transaction::Common;
 
@@ -58,23 +58,7 @@ async fn filter_double_spanding() {
     // let mut duplicated_txs = Vec::new();
     let mut total_input_hashs = Vec::new();
     for (_, tx_res) in tx_results.into_iter() {
-      let inputs = match tx_res.signed_tx.value.clone() {
-        Transaction::RewardTx(tx) => match tx {
-          RewardTx::OfferReward(t) => t.inputs,
-          RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-          RewardTx::ExecuteReward(_) => vec![],
-          _ => vec![],
-        },
-        Transaction::TokenTx(tx) => match tx {
-          TokenTx::TransferFungibleToken(t) => t.inputs,
-          TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
-          TokenTx::EntrustFungibleToken(t) =>  t.inputs,
-          TokenTx::BurnFungibleToken(t) => t.inputs,
-          TokenTx::MintFungibleToken(_) =>  vec![], 
-          _ => vec![],
-        },
-        _ => vec![],
-      };
+      let inputs = tx_res.input_hashs();
       total_input_hashs.extend(inputs);
     }
     

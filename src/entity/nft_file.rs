@@ -18,7 +18,7 @@ pub struct Model {
   pub creator: String,
   pub event_time: i64,
   pub created_at: i64,
-  pub owner: String,
+  // pub owner: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -40,7 +40,7 @@ impl Model {
       creator: Set(info.creator),
       event_time: Set(as_timestamp(&tx.created_at)),
       created_at: Set(now()),
-      owner: Set(tx.output.to_owned()),
+      // owner: Set(tx.output.to_owned()),
     }
   }
 }

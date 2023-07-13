@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path, io::Write, collections::{HashMap}};
 
 use dotenvy::var;
-use lmscan_agent::{library::common::db_connn, service::api_service::ApiService, account_entity, model::balance_info::BalanceInfo};
+use lmscan_agent::{library::common::db_connn, service::api_service::ApiService, model::balance_info::BalanceInfo, balance_entity};
 use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
 // 잔고 상위 300개 계정 order by desc, blc balance json
@@ -24,8 +24,8 @@ async fn balance_json() {
   //                             .all(db)
   //                             .await.unwrap();
 
-  let accounts = account_entity::Entity::find()
-                                .order_by_desc(account_entity::Column::Balance)
+  let accounts = balance_entity::Entity::find()
+                                .order_by_desc(balance_entity::Column::Free)
                                 .limit(300)
                                 .all(db)
                                 .await
@@ -33,7 +33,6 @@ async fn balance_json() {
 
   for account in accounts {
     let address = account.address;
-
     let response = ApiService::get_as_text_always(format!("http://lmc.leisuremeta.io/balance/{address}?movable=free")).await;
 
     let balance_res: HashMap<String, BalanceInfo> = serde_json::from_str(&response).unwrap();

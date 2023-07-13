@@ -2,16 +2,21 @@ use bigdecimal::BigDecimal;
 use sea_orm::Set;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sled::Db;
 use core::panic;
 use std::collections::{HashSet, HashMap};
 use std::fmt::Debug;
-use std::sync::Arc;
 extern crate chrono;
 use crate::service::api_service::ApiService;
-use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
+use crate::library::common::{as_timestamp, now, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map, as_vec};
+use crate::service::finder_service::Finder;
+use crate::store::free_balance::FreeBalanceStore;
+use crate::store::locked_balance::LockedBalanceStore;
+use crate::store::sled_store::SledStore;
+use crate::store::wal::State;
 use crate::{nft_file, nft_tx, account_entity};
 use crate::tx_entity::{ActiveModel as TxModel, self};
+
+use super::balance::Balance;
 
 
 impl TransactionWithResult {
@@ -168,7 +173,7 @@ pub struct ExecuteOwnershipReward {
   #[serde(rename = "tokenDefinitionId")]
   pub definition_id: String,
   #[serde(rename = "inputs")]
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(rename = "targets")]
   pub targets: Vec<String>,
 }
@@ -181,7 +186,7 @@ pub struct OfferReward {
   pub created_at: String,
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
@@ -272,7 +277,7 @@ pub struct EntrustFungibleToken {
   pub definition_id: String,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   pub to: String,
 }
 
@@ -286,7 +291,7 @@ pub struct BurnFungibleToken {
   pub definition_id: String,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
   pub amount: BigDecimal,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -312,7 +317,7 @@ pub struct TransferFungibleToken {
   pub created_at: String,
   #[serde(rename = "tokenDefinitionId")]
   pub token_definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
   pub memo: Option<String>,
@@ -424,7 +429,7 @@ pub struct DisposeEntrustedFungibleToken {
   pub created_at: String,
   #[serde(rename = "definitionId")]
   pub definition_id: String,
-  pub inputs: Vec<String>,
+  pub inputs: HashSet<String>,
   #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
   pub outputs: HashMap<String, BigDecimal>,
 }
@@ -632,7 +637,7 @@ impl Common for OfferReward {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(output_vals)),
       json: Set(json),
     }
@@ -706,7 +711,7 @@ impl Common for ExecuteOwnershipReward {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(self.inputs.clone().into_iter().collect())),
       output_vals: Set(output_vals),
       json: Set(json),
     }
@@ -784,7 +789,7 @@ impl Common for EntrustFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(vec![self.to.to_owned() + "/" + &self.amount.to_string()])),
       json: Set(json),
     }
@@ -806,7 +811,7 @@ impl Common for BurnFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(vec![from_account + "/" + &self.amount.to_string()])),
       json: Set(json),
     }
@@ -864,7 +869,7 @@ impl Common for TransferFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(output_vals),
       json: Set(json),
     }
@@ -982,7 +987,7 @@ impl Common for DisposeEntrustedFungibleToken {
       block_number: Set(block_number),
       event_time: Set(self.created_at()),
       created_at: Set(now()),
-      input_hashs: Set(Some(self.inputs.clone())),
+      input_hashs: Set(Some(as_vec(self.inputs.clone()))),
       output_vals: Set(Some(output_vals)),
       json: Set(json),
     }
@@ -1347,91 +1352,141 @@ pub struct NftMetaInfo {
 
 
 #[async_trait]
-pub trait Job {
-  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>, account_input_txs: &HashSet<String>) -> HashSet<String>;
+pub trait TxJob {
+  async fn update_free_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
+  async fn update_locked_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
   fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
-  fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>);
-  fn input_hashs(&self) -> Vec<String>;
+  fn input_hashs(&self) -> HashSet<String>;
+  fn is_free_fungible(&self) -> bool;
+  fn is_locked_fungible(&self) -> bool;
+  fn is_nft_owner_transfer(&self) -> bool;
 }
 
 #[async_trait]
-impl Job for TransactionWithResult {
-  fn update_nft_owner_info(&self, info: &mut HashMap<String, String>) -> HashSet<String> {
-    let mut updated_accouts = HashSet::new();
+impl TxJob for TransactionWithResult {
+  fn is_free_fungible(&self) -> bool {
     match &self.signed_tx.value {
-      Transaction::TokenTx(tx) => match tx {
-        TokenTx::TransferNft(tx) => {
-          info.insert(tx.token_id.clone(), tx.output.clone());
-          updated_accouts.insert(tx.token_id.clone());
-        },
-        _ => ()
-      },
-      _ => ()
+      Transaction::RewardTx(tx) => matches!(tx,
+          RewardTx::OfferReward(_)
+          | RewardTx::ExecuteOwnershipReward(_)
+          | RewardTx::ExecuteReward(_)
+      ),
+      Transaction::TokenTx(tx) => matches!(tx,
+          TokenTx::TransferFungibleToken(_)
+          | TokenTx::MintFungibleToken(_)
+          | TokenTx::DisposeEntrustedFungibleToken(_)
+          | TokenTx::EntrustFungibleToken(_)
+          | TokenTx::BurnFungibleToken(_)
+      ),
+      _ => false,
     }
-    updated_accouts
+  }
+
+  fn is_locked_fungible(&self) -> bool {
+    match &self.signed_tx.value {
+      Transaction::TokenTx(tx) => matches!(tx, 
+          TokenTx::EntrustFungibleToken(_) 
+          | TokenTx::DisposeEntrustedFungibleToken(_)
+      ),
+      _ => false,
+    }
+  }
+
+  fn is_nft_owner_transfer(&self) -> bool {
+    if let Transaction::TokenTx(tx) = &self.signed_tx.value { 
+      if let TokenTx::MintNft(_) | TokenTx::TransferNft(_) = tx {
+        return true
+      }
+    } 
+    false
   }
   
-  fn input_hashs(&self) -> Vec<String> {
+  fn update_nft_owner_info(&self, info: &mut HashMap<String, String>) -> HashSet<String> {
+    let mut updated_accounts = HashSet::new();
+    if let Transaction::TokenTx(tx) = &self.signed_tx.value {
+      if let Some((token_id, output)) = match tx {
+        TokenTx::MintNft(tx) => Some((&tx.token_id, &tx.output)),
+        TokenTx::TransferNft(tx)  => Some((&tx.token_id, &tx.output)),
+        _ => None,
+      } {
+        info.insert(token_id.clone(), output.clone());
+        updated_accounts.insert(token_id.clone());
+      }
+    }
+    updated_accounts
+  }
+  
+  fn input_hashs(&self) -> HashSet<String> {
     match self.signed_tx.value.clone() {
       Transaction::RewardTx(tx) => match tx {
         RewardTx::OfferReward(t) => t.inputs,
         RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-        RewardTx::ExecuteReward(t) => vec![],
-        _ => vec![],
+        RewardTx::ExecuteReward(_) => HashSet::new(),
+        _ => HashSet::new(),
       },
       Transaction::TokenTx(tx) => match tx {
         TokenTx::TransferFungibleToken(t) => t.inputs,
         TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
         TokenTx::EntrustFungibleToken(t) =>  t.inputs,
         TokenTx::BurnFungibleToken(t) => t.inputs,
-        _ => vec![],
+        _ => HashSet::new(),
       },
-      _ => vec![],
+      _ => HashSet::new(),
     }
+    .into_iter()
+    .collect()
   }
   
-  fn update_account_spend_txs(&self, info: &mut HashMap<String, HashSet<String>>)  {
-    fn input_txs(tx: &Transaction) -> Vec<String> {
-      match tx.clone() {
-        Transaction::RewardTx(tx) => match tx {
-          RewardTx::OfferReward(t) => t.inputs,
-          RewardTx::ExecuteOwnershipReward(t) => t.inputs,
-          RewardTx::ExecuteReward(t) => vec![],
-          _ => vec![],
+  async fn update_locked_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
+    let mut updated_accounts = HashSet::new();
+    match &self.signed_tx.value {
+      Transaction::TokenTx(tx) => match tx { 
+        TokenTx::EntrustFungibleToken(t) => {
+          let from_account = &self.signed_tx.sig.account;
+          info.get_mut(from_account).map(|b| b.add_locked(&t.amount, block_number));
+          let entry = info.get_key_value(from_account).map(|(k,v)|(k.clone(),v.locked())).unwrap();
+          LockedBalanceStore::insert(state_info, entry);
+          updated_accounts.insert(from_account.clone());
         },
-        Transaction::TokenTx(tx) => match tx {
-          TokenTx::TransferFungibleToken(t) => t.inputs,
-          TokenTx::DisposeEntrustedFungibleToken(t) => t.inputs,  
-          TokenTx::EntrustFungibleToken(t) =>  t.inputs,
-          TokenTx::BurnFungibleToken(t) => t.inputs,
-          _ => vec![],
+        TokenTx::DisposeEntrustedFungibleToken(t) => {
+          // Dispose locked balance
+          let unspent_inputs = 
+              t.inputs.iter().filter(|input_hash| !LockedBalanceStore::contains(input_hash));
+          for input_hash in unspent_inputs {
+            let input_tx = Finder::transaction_with_result(&input_hash).await;
+            if let Transaction::TokenTx(TokenTx::EntrustFungibleToken(entrust)) = input_tx.signed_tx.value {
+              let input_signer = input_tx.signed_tx.sig.account;
+              info.get_mut(&input_signer).map(|b| b.sub_locked(&entrust.amount, block_number));
+              let entry = info.get_key_value(&input_signer).map(|(k,v)|(k.clone(),v.locked())).unwrap();
+              LockedBalanceStore::insert_with_input_hashs(state_info, entry, input_hash.clone());
+              updated_accounts.insert(input_signer);
+            }
+          }
         },
-        _ => vec![],
-      }
+        _ => ()
+      },
+      _ => (),
     }
-    let input_hashs = input_txs(&self.signed_tx.value).into_iter().collect::<HashSet<String>>();
-    let signer = self.signed_tx.sig.account.clone();
-    match info.get_mut(&signer) {
-      Some(hashs) => hashs.extend(input_hashs),
-      None => { info.insert(signer, input_hashs); },
-    };
+    updated_accounts
   }
 
-  async fn update_account_balance_info(&self, info: &mut HashMap<String, BigDecimal>, spent_txs: &HashSet<String>) -> HashSet<String> {
+  async fn update_free_balance(&self, block_number: i64, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String> {
     // BurnFungibleToken 의 경우에는 해당이 안됨.
     fn deposit_to_accounts(
+      block_number: i64,
       outputs: &HashMap<String, BigDecimal>,
-      info: &mut HashMap<String, BigDecimal>,
+      info: &mut HashMap<String, Balance>,
     ) {
       outputs.iter().for_each(|(to_account, amount)| {
-        *info.entry(to_account.clone()).or_insert(BigDecimal::from(0)) += amount;
+        let balance = info.entry(to_account.clone()).or_insert(Balance::default());
+        balance.add_free(amount, block_number);
       })
     }
 
     fn extract_outputs_from_input_tx_for_withdraw(input_tx_with_res: TransactionWithResult, from_account: &String)
       -> HashMap<String, BigDecimal> 
     {
-      // withdraw from_account
+      // withdraw from account
       // b: account's balance
       // d: deposit amount
       match input_tx_with_res.signed_tx.value {
@@ -1488,34 +1543,35 @@ impl Job for TransactionWithResult {
         RewardTx::ExecuteReward(_) => 
           match self.result.clone().unwrap() {
             TransactionResult::ExecuteRewardResult(res) => 
-              Some((Some(res.outputs), vec![])),
+              Some((Some(res.outputs), HashSet::new())),
             _ => None,
           },
         _ => None,
-      },
+      }
       Transaction::TokenTx(tx) => match tx {
-        TokenTx::TransferFungibleToken(t) =>  //
+        TokenTx::TransferFungibleToken(t) =>
           Some((Some(t.outputs), t.inputs)),
-        TokenTx::MintFungibleToken(t) =>   //
-          Some((Some(t.outputs), vec![])), 
-        TokenTx::DisposeEntrustedFungibleToken(t) =>  //
-          Some((Some(t.outputs), vec![])),  
-        TokenTx::EntrustFungibleToken(t) =>  {  // playnomm 일수없음.
+        TokenTx::MintFungibleToken(t) =>
+          Some((Some(t.outputs), HashSet::new())),
+        TokenTx::DisposeEntrustedFungibleToken(t) => { 
+          Some((Some(t.outputs), HashSet::new()))
+        }  
+        TokenTx::EntrustFungibleToken(t) =>  { 
           let remainder = match (&self.result).as_ref().unwrap() {
-            TransactionResult::EntrustFungibleTokenResult(res) => res.remainder.clone(),
+            TransactionResult::EntrustFungibleTokenResult(res) => &res.remainder,
             _ => panic!("invalid BurnFungibleTokenResult")
           };
-          info.get_mut(from_account).map(|balance| *balance += remainder);
+          info.get_mut(from_account).map(|b| b.add_free(remainder, block_number));
           Some((None, t.inputs))
         }
         TokenTx::BurnFungibleToken(t) => {
           let output_amount = match (&self.result).as_ref().unwrap() {
-            TransactionResult::BurnFungibleTokenResult(res) => res.output_amount.clone(),
+            TransactionResult::BurnFungibleTokenResult(res) => &res.output_amount,
             _ => panic!("invalid BurnFungibleTokenResult")
           };
-          info.get_mut(from_account).map(|balance| *balance += output_amount);
+          info.get_mut(from_account).map(|b| b.add_free(output_amount, block_number));
           Some((None, t.inputs))
-        },
+        }
         _ => None,
       },
       _ => None
@@ -1527,29 +1583,48 @@ impl Job for TransactionWithResult {
       
       // deposits to latest txs's outputs
       outputs_in_latest_opt.map(|outputs_in_latest| {
-        deposit_to_accounts(&outputs_in_latest, info);
+        deposit_to_accounts(block_number, &outputs_in_latest, info);
+        for (to_account, _) in outputs_in_latest.iter() {
+          FreeBalanceStore::merge(
+            state_info,
+            info.get_key_value(to_account).map(|(k,v)|(k.clone(),v.free())).unwrap()
+          );
+        }
         updated_accounts.extend(outputs_in_latest.keys().cloned().collect::<HashSet<String>>());
       });
 
-      let unspent_txs = inputs_txs.iter().filter(|input_tx| !spent_txs.contains(input_tx.clone())); 
+      let spent_txs = FreeBalanceStore::spent_hashs(&from_account);
+      let unspent_txs = inputs_txs.iter().filter(|input_tx| !spent_txs.contains(*input_tx)); 
+      let mut withdraw_occured = false;
       for utxo_hash in unspent_txs {
-        let input_tx_res = ApiService::get_tx_always(utxo_hash).await;
+        let input_tx_res = Finder::transaction_with_result(utxo_hash).await;
         let outputs_in_input_tx = extract_outputs_from_input_tx_for_withdraw(input_tx_res, from_account);
         
-        // withdraw_from_outputs(outputs, info, from_account, update_balance_fn);
+        // withdraw from outputs
         match outputs_in_input_tx
-          .get(from_account)
-          .ok_or_else(|| println!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다. Latest_tx - {:?}", 
-                                    serde_json::to_string(&self).unwrap().replace("\\", "").replace("\n", "")))
-          .and_then(|withdraw_val| {
-            info.get_mut(from_account)
-                .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx - {:?}", 
-                                          serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
-                .map(|current_balance| *current_balance -= withdraw_val)
-          }) { 
-            Ok(_) => {}
-            Err(_) => {}
-          } 
+            .get(from_account)
+            .ok_or_else(|| println!("'{from_account}'가 input tx의 outputs에 존재하지 않습니다. Latest_tx - {:?}", 
+                                      serde_json::to_string(&self).unwrap().replace("\\", "").replace("\n", "")))
+            .and_then(|withdraw_val| {
+              info.get_mut(from_account)
+                  .ok_or_else(|| println!("'{from_account}'의 기존 balance 가 존재하지 않습니다. Latest_tx - {:?}", 
+                                            serde_json::to_string(self).unwrap().replace("\\", "").replace("\n", "")))
+                  .map(|b| { 
+                    b.sub_free(withdraw_val, block_number);
+                  })
+            }) {
+              Ok(_) => withdraw_occured = true,
+              Err(_) => (),
+            }
+      }
+
+      if withdraw_occured {
+        FreeBalanceStore::merge_with_inputs(
+          state_info,
+          info.get_key_value(from_account).map(|(k,v)|(k.clone(),v.free())).unwrap(),
+          spent_txs,
+          inputs_txs,
+        );
       }
     };
     updated_accounts
@@ -1577,6 +1652,7 @@ pub trait Extract: Send + Debug  {}
 #[async_trait]
 pub trait ExtractEntity {
   async fn extract_additional_entity(&self, tx_entity: &tx_entity::ActiveModel, store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>);
+  fn is_locked_fungible_tx(&self) -> bool;
 }
 
 #[derive(Debug, Clone)]
@@ -1587,6 +1663,15 @@ pub struct UpdateNftFile {
 
 #[async_trait]
 impl ExtractEntity for Transaction {
+  fn is_locked_fungible_tx(&self) -> bool {
+    if let Transaction::TokenTx(TokenTx::EntrustFungibleToken(_) | 
+                                TokenTx::DisposeEntrustedFungibleToken(_)
+                               ) = self {
+      return true
+    }
+    false
+  }
+
   async fn extract_additional_entity(&self, tx_entity: &tx_entity::ActiveModel, store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>){
     match self {
       Transaction::AccountTx(tx) => match tx {
@@ -1613,6 +1698,16 @@ impl ExtractEntity for Transaction {
             },
             None => { store.insert(AdditionalEntityKey::CreateNftFile, AdditionalEntity::CreateNftFile(vec![nft_file])); },
           };
+          
+          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: tx.output.clone() };
+          match store.get_mut(&AdditionalEntityKey::UpdateNftFile) {
+            Some(v) => match v { 
+              AdditionalEntity::UpdateNftFile(vec) => vec.push(upd_nft_file.clone()),
+              _ => (),
+            },
+            None => { store.insert(AdditionalEntityKey::UpdateNftFile, AdditionalEntity::UpdateNftFile(vec![upd_nft_file])); },
+          };
+          
 
           let nft_tx = nft_tx::Model::from(tx, tx_entity);
           match store.get_mut(&AdditionalEntityKey::NftTx) {

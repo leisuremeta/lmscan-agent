@@ -12,6 +12,7 @@ pub struct Model {
   pub total_tx_size: i64, 
   // pub tx_count_in_latest24h: i64, //tx_count_in_latest24h
   pub total_accounts: i64,
+  pub total_balance: BigDecimal,
   pub created_at: i64,
 }
 
@@ -24,6 +25,7 @@ impl Model {
               lm_price: Decimal,
               total_accounts: i64,
               total_tx_size: i64,
+              total_balance: BigDecimal
   ) -> ActiveModel {
     ActiveModel {
       id: NotSet,
@@ -31,6 +33,7 @@ impl Model {
       block_number: Set(block_number),
       total_tx_size: Set(total_tx_size),
       total_accounts: Set(total_accounts),
+      total_balance: Set(total_balance),
       created_at: Set(now()),
     }
   }
