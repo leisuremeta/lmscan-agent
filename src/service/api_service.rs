@@ -6,13 +6,15 @@ use log::info;
 use tokio::time::sleep;
 use std::fmt::Debug;
 
+extern crate dotenvy;
+use dotenvy::var;
+
 lazy_static! {
   static ref CLIENT: reqwest::Client = reqwest::Client::new();
+  #[derive(Debug)]
+  static ref BASE_URI: String = var("BASE_URI").expect("BASE_URI must be set.");
 }
 
-// static BASE_URI: &str = "http://lmc.leisuremeta.io";
-// static BASE_URI: &str = "http://test.chain.leisuremeta.io";
-static BASE_URI: &str = "http://localhost:8081";
 
 pub struct ApiService;
 
@@ -224,19 +226,19 @@ impl ApiService {
   } 
 
   pub async fn get_node_status_always() -> NodeStatus {
-    Self::get_request_always(format!("{BASE_URI}/status")).await
+    Self::get_request_always(format!("{:?}/status", BASE_URI)).await
   }
   
   pub async fn get_block_always(hash: &str) -> Block {
-    Self::get_request_always(format!("{BASE_URI}/block/{hash}")).await
+    Self::get_request_always(format!("{:?}/block/{hash}", BASE_URI)).await
   }
   
   pub async fn get_tx_always(hash: &str) -> TransactionWithResult {
-    Self::get_request_always(format!("{BASE_URI}/tx/{hash}")).await
+    Self::get_request_always(format!("{:?}/tx/{hash}", BASE_URI)).await
   }  
 
   pub async fn get_tx_with_json_always(hash: &str) -> (TransactionWithResult, String) {
-    Self::get_request_with_json_always(format!("{BASE_URI}/tx/{hash}")).await
+    Self::get_request_with_json_always(format!("{:?}/tx/{hash}", BASE_URI)).await
   }  
 
   pub async fn get_free_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
@@ -250,7 +252,7 @@ impl ApiService {
 
   pub async fn get_balance(address: &str, movable: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
     loop {
-      match CLIENT.get(format!("{BASE_URI}/balance/{address}?movable={movable}")).send().await {
+      match CLIENT.get(format!("{:?}/balance/{address}?movable={movable}", BASE_URI)).send().await {
         Ok(res) => match res.text().await  {
           Ok(payload) => {
             let value: Result<HashMap<String, BalanceInfo>, serde_json::Error> = serde_json::from_str(&payload);
@@ -279,16 +281,16 @@ impl ApiService {
 
   
   pub async fn get_account_always(address: &str) -> AccountInfo {
-    Self::get_request_always(format!("{BASE_URI}/account/{address}")).await
+    Self::get_request_always(format!("{:?}/account/{address}", BASE_URI)).await
   }
 
   pub async fn get_eth_address(eth_address: &str) -> Option<String> {
-    let res: Result<Option<String>, String> = Self::get_request(format!("{BASE_URI}/eth/{eth_address}")).await;
+    let res: Result<Option<String>, String> = Self::get_request(format!("{:?}/eth/{eth_address}", BASE_URI)).await;
     res.unwrap_or_default()
   }
 
   pub async fn get_nft_token_always(token_id: &str) -> NftState {
-    Self::get_request_always(format!("{BASE_URI}/token/{token_id}")).await
+    Self::get_request_always(format!("{:?}/token/{token_id}", BASE_URI)).await
   }
 
   pub async fn get_as_text_always(uri: String) -> String {
@@ -309,19 +311,19 @@ impl ApiService {
   }
 
   pub async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
-    let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = Self::get_request(format!("{BASE_URI}/nft-balance/{address}")).await;
+    let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = Self::get_request(format!("{:?}/nft-balance/{address}", BASE_URI)).await;
     res.unwrap_or_default()
   }
 
   pub async fn get_nft_token(token_id: &str) -> Option<NftState> {
-    let res: Result<Option<NftState>, String> = Self::get_request(format!("{BASE_URI}/token/{token_id}")).await;
+    let res: Result<Option<NftState>, String> = Self::get_request(format!("{:?}/token/{token_id}", BASE_URI)).await;
     res.unwrap_or_default()
   }
 
 
 
   pub async fn post_txs(txs: String) -> Result<Vec<String>, String> {
-    let ref url = format!("{BASE_URI}/tx");
+    let ref url = format!("{:?}/tx", BASE_URI);
     match CLIENT.post(url.as_str()).header("Content-Type", "application/json").body(txs).send().await {
       Ok(res) => match res.text().await  {
         Ok(payload) => {
@@ -348,6 +350,3 @@ impl ApiService {
     }
   }  
 }
-
-
-

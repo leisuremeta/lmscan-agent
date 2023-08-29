@@ -676,7 +676,7 @@ async fn block_check_loop(db: DatabaseConnection) {
       balance_info = build_saved_state_proc(&db,balance_info, &mut nft_owner_info).await;
       sleep(Duration::from_secs(3)).await;
       println!("block_check_loop end");
-      panic!()
+      // panic!()
     }
   }).await.unwrap()
 }
@@ -694,7 +694,7 @@ async fn main() {
   Finder::init(db.clone());
   // TODO: 몇번 블럭부터 빌드다시 시작할지 받을수 있는 설정 파일 만들기.
   tokio::join!(
-    // summary_loop(db.clone(), coin_market_api_key),
+    summary_loop(db.clone(), coin_market_api_key),
     block_check_loop(db),
   );
 

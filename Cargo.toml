@@ -29,8 +29,9 @@ lazy_static = "1.4.0"
 rayon = "1.7"
 sled = { version = "0.34.7", features = ["compression"] }
 once_cell = "1.18.0"
+bincode = "1.3.3"
+dashmap = "5.5.1"
 
 [dependencies.sea-orm]
 version = "0.11.0"
 features = ["sqlx-postgres", "runtime-tokio-native-tls", "sea-orm-macros", "with-chrono", "with-json", "postgres-array"]
-
