@@ -15,7 +15,6 @@ lazy_static! {
   static ref BASE_URI: String = var("BASE_URI").expect("BASE_URI must be set.");
 }
 
-
 pub struct ApiService;
 
 impl ApiService {
@@ -77,77 +76,11 @@ impl ApiService {
     }
   }
 
-  // async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<Option<S>, String> {
-  //   // match reqwest::get(url.as_str()).await {
-  //   //   Ok(res) => match res.text().await{
-  //   //     Ok(payload) => println!("api response: {}\n", payload),
-  //   //     Err(err) => {
-  //   //       println!("error response: {}",err);
-  //   //       panic!();
-  //   //     },
-  //   //   }
-  //   //   Err(err) => panic!(),
-  //   // };
-  //   match CLIENT.get(url.as_str()).send().await {
-  //     Ok(res) => match res.json::<Either<S, ResultError>>().await  {
-  //     // Ok(res) => match res.json().await  {
-  //       Ok(payload) => match payload {
-  //         Either::Right(val) => Ok(Some(val)),
-  //         Either::Left(err) => {
-  //           if err.value.is_not_found_err() {
-  //             Ok(None)
-  //           } else {
-  //             Err(err.value.msg)
-  //           }
-  //         }
-  //       },
-  //       // Ok(payload) => {
-  //       //   println!("{payload}");
-
-  //       //   let payload: Result<Either<S, ResultError>, serde_json::Error> = serde_json::from_str(&payload);
-  //       //   match payload {
-  //       //     Ok(either) => match either {
-  //       //       Either::Right(val) => Ok(Some(val)),
-  //       //       Either::Left(err) => {
-  //       //         if err.value.is_not_found_err() {
-  //       //           Ok(None)
-  //       //         } else {
-  //       //           Err(err.value.msg)
-  //       //         }
-  //       //       },
-  //       //     },
-  //       //     Err(err) => Err(format!("1: {}",err.to_string()))
-  //       //   }
-  //       // },
-  //       Err(err) => {
-  //         // println!("get_request parse err '{err}' - {:?}", url.as_str()); 
-  //         Err(format!("2: {}",err.to_string()))
-  //       },
-  //     }
-  //     Err(err) => {
-  //       println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
-  //       Err(format!("3: {}",err.to_string()))
-  //     },
-  //   }
-  // }
-  
-  async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + serde::de::DeserializeOwned + Debug>(url: T) -> Result<Option<S>, String> {
+  pub async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<S, String> {
     match CLIENT.get(url.as_str()).send().await {
-      Ok(res) => match res.text().await  {
-        Ok(payload) => {
-          let value: Result<S, serde_json::Error> = serde_json::from_str(&payload);
-          match value {
-            Ok(val) => Ok(Some(val)),
-            Err(err) => {
-              let err_result: Result<String, _> = serde_json::from_str(&payload);
-              match err_result {
-                Ok(err_msg) => Ok(None),
-                Err(err) => Err(err.to_string()),
-              }
-            },
-          }
-        },
-        Err(err) => Err(err.to_string()),
+      Ok(res) => match res.json::<S>().await {
+        Ok(payload) => Ok(payload),
+        Err(err) => Err(err.to_string())
       },
       Err(err) => {
         println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
@@ -155,61 +88,6 @@ impl ApiService {
       },
     }
   }
-
-
-  // async fn get_request<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T) -> Result<Option<S>, String> {
-  //   // match reqwest::get(url.as_str()).await {
-  //   //   Ok(res) => match res.text().await{
-  //   //     Ok(payload) => println!("api response: {}\n", payload),
-  //   //     Err(err) => {
-  //   //       println!("error response: {}",err);
-  //   //       panic!();
-  //   //     },
-  //   //   }
-  //   //   Err(err) => panic!(),
-  //   // };
-  //   match CLIENT.get(url.as_str()).send().await {
-  //     // Ok(res) => match res.json::<Either<S, ResultError>>().await  {
-  //     Ok(res) => match res.text().await  {
-  //       // Ok(payload) => match payload {
-  //       //   Either::Right(val) => Ok(Some(val)),
-  //       //   Either::Left(err) => {
-  //       //     if err.value.is_not_found_err() {
-  //       //       Ok(None)
-  //       //     } else {
-  //       //       Err(err.value.msg)
-  //       //     }
-  //       //   }
-  //       // },
-  //       Ok(payload) => {
-  //         println!("{payload}");
-
-  //         let payload: Result<Either<S, ResultError>, serde_json::Error> = serde_json::from_str(&payload);
-  //         match payload {
-  //           Ok(either) => match either {
-  //             Either::Right(val) => Ok(Some(val)),
-  //             Either::Left(err) => {
-  //               if err.value.is_not_found_err() {
-  //                 Ok(None)
-  //               } else {
-  //                 Err(err.value.msg)
-  //               }
-  //             },
-  //           },
-  //           Err(err) => Err(format!("1: {}",err.to_string()))
-  //         }
-  //       },
-  //       Err(err) => {
-  //         // println!("get_request parse err '{err}' - {:?}", url.as_str()); 
-  //         Err(format!("2: {}",err.to_string()))
-  //       },
-  //     }
-  //     Err(err) => {
-  //       println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
-  //       Err(format!("3: {}",err.to_string()))
-  //     },
-  //   }
-  // }
 
   pub async fn get_request_until<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(url: T, count: u8) -> Option<S> {
     info!("get_request_until {count} : {:?}", url.as_str());
@@ -285,8 +163,7 @@ impl ApiService {
   }
 
   pub async fn get_eth_address(eth_address: &str) -> Option<String> {
-    let res: Result<Option<String>, String> = Self::get_request(format!("{:?}/eth/{eth_address}", BASE_URI)).await;
-    res.unwrap_or_default()
+    Self::get_request(format!("{:?}/eth/{eth_address}", BASE_URI)).await.ok()
   }
 
   pub async fn get_nft_token_always(token_id: &str) -> NftState {
@@ -311,13 +188,11 @@ impl ApiService {
   }
 
   pub async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
-    let res: Result<Option<HashMap<String, NftBalanceInfo>>, String> = Self::get_request(format!("{:?}/nft-balance/{address}", BASE_URI)).await;
-    res.unwrap_or_default()
+    Self::get_request(format!("{:?}/nft-balance/{address}", BASE_URI)).await.ok()
   }
 
   pub async fn get_nft_token(token_id: &str) -> Option<NftState> {
-    let res: Result<Option<NftState>, String> = Self::get_request(format!("{:?}/token/{token_id}", BASE_URI)).await;
-    res.unwrap_or_default()
+    Self::get_request(format!("{:?}/token/{token_id}", BASE_URI)).await.ok()
   }
 
 
@@ -331,8 +206,7 @@ impl ApiService {
           let value: Result<Vec<String>, serde_json::Error> = serde_json::from_str(&payload);
           match value {
             Ok(val) => Ok(val),
-            Err(err) => {
-              // println!("0: {}", err.to_string());
+            Err(_) => {
               let err_result: Result<String, _> = serde_json::from_str(&payload);
               match err_result {
                 Ok(err_msg) => Err(format!("1: {err_msg}")),
