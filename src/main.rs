@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use std::vec;
 
+use futures::executor::block_on;
 use lmscan_agent::model::balance::Balance;
 use lmscan_agent::service::api_service::ApiService;
 use lmscan_agent::service::finder_service::Finder;
@@ -358,7 +359,6 @@ async fn update_all_balance_info(
 
     if balance_info.len() != record_affected {
         error!("특정 계정의 잔고 업데이트가 누락되었습니다. {}개의 계정 중 성공 레코드 갯수: {record_affected}", balance_info.len());
-        println!("특정 계정의 잔고 업데이트가 누락되었습니다. {}개의 계정 중 성공 레코드 갯수: {record_affected}", balance_info.len());
     }
 
     true
@@ -416,10 +416,12 @@ async fn save_diff_state_proc(
 
     while is_conitnue {
         let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await;
-        println!(
-            "block number: {}, hash: {}",
-            block.header.number, curr_block_hash
-        );
+        if block.header.number % 1000 == 0 {
+            println!(
+                "block number: {}, hash: {}",
+                block.header.number, curr_block_hash
+            );
+        }
 
         let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
         block_states.push(block_state);
@@ -629,9 +631,6 @@ async fn block_check_loop(db: DatabaseConnection) {
         loop {
             println!("block_check_loop start");
             // let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
-            // let ref node_status = ApiService::get_node_status_always().await;
-            // save_diff_state_proc(node_status.best_hash.clone(), download_start_block.hash, &db).await;
-
             let ref node_status = ApiService::get_node_status_always().await;
             let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
             save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
@@ -639,7 +638,6 @@ async fn block_check_loop(db: DatabaseConnection) {
             balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
             sleep(Duration::from_secs(3)).await;
             println!("block_check_loop end");
-            // panic!()
         }
     })
     .await
@@ -652,13 +650,13 @@ async fn main() {
     log4rs::init_file(var("LOG_CONFIG_FILE_PATH").unwrap(), Default::default()).unwrap();
 
     let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
-    let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
+    // let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
 
     let db = db_connn(database_url).await;
     Finder::init(db.clone());
     // TODO: 몇번 블럭부터 빌드다시 시작할지 받을수 있는 설정 파일 만들기.
     tokio::join!(
-        summary_app::summary_loop(db.clone(), coin_market_api_key),
+        // summary_app::summary_loop(db.clone(), coin_market_api_key),
         block_check_loop(db),
     );
 }

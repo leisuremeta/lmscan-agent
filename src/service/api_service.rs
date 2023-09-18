@@ -6,14 +6,12 @@ use log::info;
 use tokio::time::sleep;
 use std::fmt::Debug;
 
-extern crate dotenvy;
-use dotenvy::var;
-
 lazy_static! {
   static ref CLIENT: reqwest::Client = reqwest::Client::new();
-  #[derive(Debug)]
-  static ref BASE_URI: String = var("BASE_URI").expect("BASE_URI must be set.");
 }
+
+// const BASE_URI: &str = "http://lmc.leisuremeta.io";
+const BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 pub struct ApiService;
 
@@ -104,19 +102,19 @@ impl ApiService {
   } 
 
   pub async fn get_node_status_always() -> NodeStatus {
-    Self::get_request_always(format!("{:?}/status", BASE_URI)).await
+    Self::get_request_always(format!("{}/status", BASE_URI)).await
   }
   
   pub async fn get_block_always(hash: &str) -> Block {
-    Self::get_request_always(format!("{:?}/block/{hash}", BASE_URI)).await
+    Self::get_request_always(format!("{}/block/{hash}", BASE_URI)).await
   }
   
   pub async fn get_tx_always(hash: &str) -> TransactionWithResult {
-    Self::get_request_always(format!("{:?}/tx/{hash}", BASE_URI)).await
+    Self::get_request_always(format!("{}/tx/{hash}", BASE_URI)).await
   }  
 
   pub async fn get_tx_with_json_always(hash: &str) -> (TransactionWithResult, String) {
-    Self::get_request_with_json_always(format!("{:?}/tx/{hash}", BASE_URI)).await
+    Self::get_request_with_json_always(format!("{}/tx/{hash}", BASE_URI)).await
   }  
 
   pub async fn get_free_balance(address: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
@@ -130,7 +128,7 @@ impl ApiService {
 
   pub async fn get_balance(address: &str, movable: &str) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
     loop {
-      match CLIENT.get(format!("{:?}/balance/{address}?movable={movable}", BASE_URI)).send().await {
+      match CLIENT.get(format!("{}/balance/{address}?movable={movable}", BASE_URI)).send().await {
         Ok(res) => match res.text().await  {
           Ok(payload) => {
             let value: Result<HashMap<String, BalanceInfo>, serde_json::Error> = serde_json::from_str(&payload);
@@ -159,15 +157,15 @@ impl ApiService {
 
   
   pub async fn get_account_always(address: &str) -> AccountInfo {
-    Self::get_request_always(format!("{:?}/account/{address}", BASE_URI)).await
+    Self::get_request_always(format!("{}/account/{address}", BASE_URI)).await
   }
 
   pub async fn get_eth_address(eth_address: &str) -> Option<String> {
-    Self::get_request(format!("{:?}/eth/{eth_address}", BASE_URI)).await.ok()
+    Self::get_request(format!("{}/eth/{eth_address}", BASE_URI)).await.ok()
   }
 
   pub async fn get_nft_token_always(token_id: &str) -> NftState {
-    Self::get_request_always(format!("{:?}/token/{token_id}", BASE_URI)).await
+    Self::get_request_always(format!("{}/token/{token_id}", BASE_URI)).await
   }
 
   pub async fn get_as_text_always(uri: String) -> String {
@@ -188,17 +186,17 @@ impl ApiService {
   }
 
   pub async fn get_nft_balance(address: &str) -> Option<HashMap<String, NftBalanceInfo>> {
-    Self::get_request(format!("{:?}/nft-balance/{address}", BASE_URI)).await.ok()
+    Self::get_request(format!("{}/nft-balance/{address}", BASE_URI)).await.ok()
   }
 
   pub async fn get_nft_token(token_id: &str) -> Option<NftState> {
-    Self::get_request(format!("{:?}/token/{token_id}", BASE_URI)).await.ok()
+    Self::get_request(format!("{}/token/{token_id}", BASE_URI)).await.ok()
   }
 
 
 
   pub async fn post_txs(txs: String) -> Result<Vec<String>, String> {
-    let ref url = format!("{:?}/tx", BASE_URI);
+    let ref url = format!("{}/tx", BASE_URI);
     match CLIENT.post(url.as_str()).header("Content-Type", "application/json").body(txs).send().await {
       Ok(res) => match res.text().await  {
         Ok(payload) => {
@@ -218,7 +216,7 @@ impl ApiService {
         Err(err) => Err(err.to_string()),
       },
       Err(err) => {
-        println!("get_request '{:?}' http communication err occured: '{err}'", url.as_str()); 
+        println!("get_request '{}' http communication err occured: '{err}'", url.as_str()); 
         Err(format!("3: {}",err.to_string()))
       },
     }

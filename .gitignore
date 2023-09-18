@@ -1,3 +1,6 @@
 .env
 log/
 sled/
+
+
+.vscode
