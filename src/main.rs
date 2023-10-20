@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use std::vec;
 
-use futures::executor::block_on;
 use lmscan_agent::model::balance::Balance;
 use lmscan_agent::service::api_service::ApiService;
 use lmscan_agent::service::finder_service::Finder;
@@ -30,6 +29,7 @@ use lmscan_agent::library::common::*;
 use lmscan_agent::summary_app;
 
 use log::error;
+use chrono::{NaiveDateTime, DateTime, Local};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
@@ -285,24 +285,30 @@ async fn save_all_nft_files(
 }
 
 async fn update_all_nft_owner(
-    owner_info: HashMap<String, String>,
+    owner_vec: Vec<(String, String, String)>,
     txn: &DatabaseTransaction,
 ) -> bool {
-    if owner_info.is_empty() {
-        return true;
+    if owner_vec.is_empty() { return true }
+    fn parse_time(str: &String) -> i64 {
+        match DateTime::parse_from_rfc3339(str) {
+            Ok(x) => x.naive_utc().timestamp(),
+            Err(_) => Local::now().timestamp(), 
+        }
     }
-    let owner_info = owner_info
+    let owner_info = owner_vec
         .iter()
-        .map(|(token_id, owner)| format!("('{token_id}','{owner}')"))
+        .sorted_by(|a, b| a.2.cmp(&b.2))
+        .map(|(token_id, owner, et)| format!("('{token_id}','{owner}',{})", parse_time(et)))
         .collect::<Vec<String>>()
         .join(",");
+    
     let query = format!(
-        r#"INSERT INTO nft_owner (token_id,owner)
+        r#"INSERT INTO nft_owner (token_id,owner,event_time)
       VALUES {owner_info}
       ON CONFLICT (token_id) 
       DO UPDATE 
       SET 
-        owner = EXCLUDED.owner;"#
+        owner = EXCLUDED.owner, event_time = EXCLUDED.event_time;"#
     );
 
     match txn
@@ -378,17 +384,6 @@ async fn finish_all_block_states(block_hashs: Vec<String>, db: &DatabaseTransact
         return false;
     }
     true
-}
-
-fn extract_updated_nft_owners(
-    nft_owner_info: &HashMap<String, String>,
-    transfered_token_id: HashSet<String>,
-) -> HashMap<String, String> {
-    nft_owner_info
-        .iter()
-        .filter(|(k, _)| transfered_token_id.contains(*k))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
 }
 
 fn extract_updated_balance_accounts(
@@ -468,7 +463,7 @@ async fn build_saved_state_proc(
         let mut tx_entities = vec![];
         let mut additional_entity_store = HashMap::new();
         let mut balance_updated_accounts = HashSet::new();
-        let mut transfered_nft_token_ids = HashSet::new();
+        let mut nft_owner_vec: Vec<(String, String, String)> = vec![];
 
         let block_hashs = block_states
             .iter()
@@ -529,7 +524,7 @@ async fn build_saved_state_proc(
                     tx_state.block_hash.clone(),
                     number,
                     tx_state.json.clone(),
-                    tx_res.result.clone(),
+                    tx_res.clone(),
                 );
                 tx.extract_additional_entity(&tx_entity, &mut additional_entity_store)
                     .await;
@@ -560,17 +555,12 @@ async fn build_saved_state_proc(
             }
 
             // Nft owner transfer txs
-            for nft_tansfer_tx in tx_res_vec
+            nft_owner_vec = tx_res_vec
                 .iter()
-                .filter(|tx_res| tx_res.is_nft_owner_transfer())
-            {
-                transfered_nft_token_ids
-                    .extend(nft_tansfer_tx.update_nft_owner_info(nft_owner_info));
-            }
+                .filter_map(|tx| tx.update_nft_owner_info())
+                .collect_vec();
         }
 
-        let updated_nft_owners =
-            extract_updated_nft_owners(&nft_owner_info, transfered_nft_token_ids);
         let updated_balance_accounts =
             extract_updated_balance_accounts(&curr_balance_info, balance_updated_accounts);
 
@@ -594,7 +584,7 @@ async fn build_saved_state_proc(
                             txn,
                         )
                         .await
-                        || !update_all_nft_owner(updated_nft_owners, txn).await
+                        || !update_all_nft_owner(nft_owner_vec, txn).await
                         || !update_all_balance_info(updated_balance_accounts, txn).await
                         || !finish_all_block_states(block_hashs, txn).await
                         || !FreeBalanceStore::flush(snapshot_stage, free_state)
@@ -615,7 +605,6 @@ async fn build_saved_state_proc(
             LockedBalanceStore::rollback();
             error!("save transaction process err: {err}");
             panic!("save transaction process err: {err}");
-            break;
         } else {
             prev_balance_info = curr_balance_info;
         }
@@ -629,8 +618,6 @@ async fn block_check_loop(db: DatabaseConnection) {
         let mut nft_owner_info = get_nft_owner_infos(&db).await;
         balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
         loop {
-            println!("block_check_loop start");
-            // let download_start_block = BlockState::find().order_by_asc(block_state::Column::Number).one(&db).await.unwrap().unwrap();
             let ref node_status = ApiService::get_node_status_always().await;
             let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
             save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
@@ -650,13 +637,13 @@ async fn main() {
     log4rs::init_file(var("LOG_CONFIG_FILE_PATH").unwrap(), Default::default()).unwrap();
 
     let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set.");
-    // let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
+    let coin_market_api_key = var("COIN_MARKET_API_KEY").expect("COIN_MARKET_API_KEY must be set.");
 
     let db = db_connn(database_url).await;
     Finder::init(db.clone());
     // TODO: 몇번 블럭부터 빌드다시 시작할지 받을수 있는 설정 파일 만들기.
     tokio::join!(
-        // summary_app::summary_loop(db.clone(), coin_market_api_key),
+        summary_app::summary_loop(db.clone(), coin_market_api_key),
         block_check_loop(db),
     );
 }

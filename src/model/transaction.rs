@@ -1,4 +1,5 @@
 use bigdecimal::BigDecimal;
+use itertools::Itertools;
 use sea_orm::Set;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -550,14 +551,14 @@ pub struct VoteSimpleAgenda {
 pub trait Common {
   fn created_at(&self) -> i64;
   fn network_id(&self) -> i64;
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel;
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel;
 }
 
 
 impl Common for RecordActivity {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Reward".to_string()),
@@ -579,7 +580,7 @@ impl Common for RecordActivity {
 impl Common for RegisterDao {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Reward".to_string()),
@@ -601,7 +602,7 @@ impl Common for RegisterDao {
 impl Common for UpdateDao {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Reward".to_string()),
@@ -623,7 +624,7 @@ impl Common for UpdateDao {
 impl Common for OfferReward {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     let to_accounts: Vec<String> = self.outputs.keys().map(|s| s.to_string()).collect();
     let output_vals = self.outputs.iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
@@ -647,9 +648,9 @@ impl Common for OfferReward {
 impl Common for ExecuteReward {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
 
-    let (to_accounts, output_vals) = match tx_res_opt {
+    let (to_accounts, output_vals) = match tx.result {
         Option::Some(tx_res) => 
           match tx_res {
             TransactionResult::ExecuteRewardResult(res) => {
@@ -685,8 +686,8 @@ impl Common for ExecuteOwnershipReward {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-    let (to_accounts, output_vals) = match tx_res_opt {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
+    let (to_accounts, output_vals) = match tx.result {
       Option::Some(tx_res) => 
         match tx_res {
           TransactionResult::ExecuteOwnershipRewardResult(res) => {
@@ -739,14 +740,14 @@ impl Common for RewardTx {
       RewardTx::ExecuteOwnershipReward(t) => t.network_id,
     }
   }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     match self {
-      RewardTx::RecordActivity(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      RewardTx::RegisterDao(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      RewardTx::UpdateDao(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      RewardTx::OfferReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      RewardTx::ExecuteReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      RewardTx::ExecuteOwnershipReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      RewardTx::RecordActivity(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      RewardTx::RegisterDao(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      RewardTx::UpdateDao(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      RewardTx::OfferReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      RewardTx::ExecuteReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      RewardTx::ExecuteOwnershipReward(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -755,7 +756,7 @@ impl Common for RewardTx {
 impl Common for EntrustNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -777,7 +778,7 @@ impl Common for EntrustNft {
 impl Common for EntrustFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -799,7 +800,7 @@ impl Common for EntrustFungibleToken {
 impl Common for BurnFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -821,7 +822,7 @@ impl Common for BurnFungibleToken {
 impl Common for TransferNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -843,19 +844,18 @@ impl Common for TransferNft {
 impl Common for TransferFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
-
-    let mut to_accounts = vec![];
-    let output_vals: Option<Vec<String>> = match tx_res_opt {
-        Option::Some(tx_res) => 
-          match tx_res {
-            TransactionResult::ExecuteRewardResult(res) => {
-              to_accounts = res.outputs.keys().into_iter().map(|addr| addr.to_owned()).collect();
-              Some(res.outputs.into_iter().map(|(k, v)| k + "/" + &v.to_string()).collect())
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
+    let mut to_accounts: Vec<String> = vec![];
+    let output_vals: Option<Vec<String>> = match tx.signed_tx.value {
+        Transaction::TokenTx(t) => { match t {
+                TokenTx::TransferFungibleToken(v) => {
+                    to_accounts = v.clone().outputs.into_iter().map(|(x, _)| x).collect_vec();
+                    Some(v.outputs.into_iter().map(|(k, v)| k + "/" + &v.to_string()).collect())
+                }
+                _ => None,
             }
-            _ => None,
-        },
-        None => None,
+        }
+        _ => None,
     };
 
     TxModel {
@@ -879,7 +879,7 @@ impl Common for TransferFungibleToken {
 impl Common for MintNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     let to_addr = self.output.to_owned();
     TxModel {
       hash: Set(hash),
@@ -902,7 +902,7 @@ impl Common for MintNft {
 impl Common for MintFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -924,7 +924,7 @@ impl Common for MintFungibleToken {
 impl Common for DefineToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -946,7 +946,7 @@ impl Common for DefineToken {
 impl Common for DisposeEntrustedNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     let to_account = match &self.output {
       Option::Some(value) => value.to_owned(),
       None => String::from(""),
@@ -973,7 +973,7 @@ impl Common for DisposeEntrustedNft {
 impl Common for DisposeEntrustedFungibleToken {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     let to_accounts = (&self.outputs).keys().map(|addr| addr.to_owned()).collect();
     let output_vals: Vec<String> = (&self.outputs).into_iter().map(|(k, v)| k.to_owned() + "/" + &v.to_string()).collect();
     TxModel {
@@ -997,7 +997,7 @@ impl Common for DisposeEntrustedFungibleToken {
 impl Common for BurnNft {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Token".to_string()),
@@ -1048,19 +1048,19 @@ impl Common for TokenTx {
     }
   }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     match self {
-      TokenTx::BurnNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::EntrustNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::EntrustFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::TransferNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::TransferFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::MintNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::MintFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::DefineToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::DisposeEntrustedNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::DisposeEntrustedFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      TokenTx::BurnFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      TokenTx::BurnNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::EntrustNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::EntrustFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::TransferNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::TransferFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::MintNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::MintFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::DefineToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::DisposeEntrustedNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::DisposeEntrustedFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      TokenTx::BurnFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -1069,7 +1069,7 @@ impl Common for AddPublicKeySummaries {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Account".to_string()),
@@ -1091,7 +1091,7 @@ impl Common for AddPublicKeySummaries {
 impl Common for CreateAccount {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Account".to_string()),
@@ -1113,7 +1113,7 @@ impl Common for CreateAccount {
 impl Common for UpdateAccount {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Account".to_string()),
@@ -1149,11 +1149,11 @@ impl Common for AccountTx {
     }
   }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     match self {
-      AccountTx::AddPublicKeySummaries(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      AccountTx::CreateAccount(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      AccountTx::UpdateAccount(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      AccountTx::AddPublicKeySummaries(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      AccountTx::CreateAccount(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      AccountTx::UpdateAccount(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -1162,7 +1162,7 @@ impl Common for AddAccounts {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       tx_type: Set("Group".to_string()),
@@ -1184,7 +1184,7 @@ impl Common for AddAccounts {
 impl Common for CreateGroup {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       token_type: Set("LM".to_string()),
@@ -1206,7 +1206,7 @@ impl Common for CreateGroup {
 impl Common for SuggestSimpleAgenda {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       token_type: Set("".to_string()),
@@ -1229,7 +1229,7 @@ impl Common for SuggestSimpleAgenda {
 impl Common for VoteSimpleAgenda {
   fn created_at(&self) -> i64 { as_timestamp(self.created_at.as_str()) }
   fn network_id(&self) -> i64 { self.network_id }
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     TxModel {
       hash: Set(hash),
       token_type: Set("".to_string()),
@@ -1264,10 +1264,10 @@ impl Common for GroupTx {
     }
   }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     match self {
-      GroupTx::AddAccounts(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      GroupTx::CreateGroup(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      GroupTx::AddAccounts(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      GroupTx::CreateGroup(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -1287,10 +1287,10 @@ impl Common for AgendaTx {
     }
   }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     match self {
-      AgendaTx::SuggestSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      AgendaTx::VoteSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      AgendaTx::SuggestSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      AgendaTx::VoteSimpleAgenda(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -1316,14 +1316,14 @@ impl Common for Transaction {
     }
   }
 
-  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx_res_opt: Option<TransactionResult>) -> TxModel {
+  fn from(&self, hash: String, from_account: String, block_hash: String, block_number: i64, json: String, tx: TransactionWithResult) -> TxModel {
     let from_account = from_account.to_owned();
     match self {
-      Transaction::RewardTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      Transaction::TokenTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      Transaction::AccountTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      Transaction::GroupTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
-      Transaction::AgendaTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx_res_opt),
+      Transaction::RewardTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      Transaction::TokenTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      Transaction::AccountTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      Transaction::GroupTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+      Transaction::AgendaTx(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
     }
   }
 }
@@ -1355,11 +1355,10 @@ pub struct NftMetaInfo {
 pub trait Job {
   async fn update_free_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
   async fn update_locked_balance(&self, info: &mut HashMap<String, Balance>, state_info: &mut HashMap<String, State>) -> HashSet<String>;
-  fn update_nft_owner_info(&self, nft_owner_info: &mut HashMap<String, String>) -> HashSet<String>;
+  fn update_nft_owner_info(&self) -> Option<(String, String, String)>;
   fn input_hashs(&self) -> HashSet<String>;
   fn is_free_fungible(&self) -> bool;
   fn is_locked_fungible(&self) -> bool;
-  fn is_nft_owner_transfer(&self) -> bool;
 }
 
 #[async_trait]
@@ -1392,30 +1391,18 @@ impl Job for TransactionWithResult {
     }
   }
 
-  fn is_nft_owner_transfer(&self) -> bool {
+  fn update_nft_owner_info(&self) -> Option<(String, String, String)> {
     if let Transaction::TokenTx(tx) = &self.signed_tx.value { 
-      if let TokenTx::MintNft(_) | TokenTx::TransferNft(_) = tx {
-        return true
-      }
-    } 
-    false
-  }
-  
-  fn update_nft_owner_info(&self, info: &mut HashMap<String, String>) -> HashSet<String> {
-    let mut updated_accounts = HashSet::new();
-    if let Transaction::TokenTx(tx) = &self.signed_tx.value {
-      if let Some((token_id, output)) = match tx {
-        TokenTx::MintNft(tx) => Some((&tx.token_id, &tx.output)),
-        TokenTx::TransferNft(tx)  => Some((&tx.token_id, &tx.output)),
-        _ => None,
-      } {
-        info.insert(token_id.clone(), output.clone());
-        updated_accounts.insert(token_id.clone());
-      }
+        match tx {
+            TokenTx::MintNft(tx) => Some((tx.token_id.clone(), tx.output.clone(), tx.created_at.clone())),
+            TokenTx::TransferNft(tx)  => Some((tx.token_id.clone(), tx.output.clone(), tx.created_at.clone())),
+            _ => None,
+        }
+    } else {
+        None
     }
-    updated_accounts
   }
-  
+
   fn input_hashs(&self) -> HashSet<String> {
     match self.signed_tx.value.clone() {
       Transaction::RewardTx(tx) => match tx {
@@ -1634,14 +1621,12 @@ impl Job for TransactionWithResult {
 pub enum AdditionalEntity {
   CreateAccount(Vec<account_entity::ActiveModel>),
   CreateNftFile(Vec<nft_file::ActiveModel>),
-  UpdateNftFile(Vec<UpdateNftFile>),
   NftTx(Vec<nft_tx::ActiveModel>),
 }
 
 #[derive(Hash, Eq, PartialEq)]
 pub enum AdditionalEntityKey {
   CreateNftFile, 
-  UpdateNftFile,
   NftTx,
   CreateAccount,
 }
@@ -1652,12 +1637,6 @@ pub trait Extract: Send + Debug  {}
 pub trait ExtractEntity {
   async fn extract_additional_entity(&self, tx_entity: &tx_entity::ActiveModel, store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>);
   fn is_locked_fungible_tx(&self) -> bool;
-}
-
-#[derive(Debug, Clone)]
-pub struct UpdateNftFile {
-  pub token_id: String,
-  pub owner: String,
 }
 
 #[async_trait]
@@ -1698,16 +1677,6 @@ impl ExtractEntity for Transaction {
             None => { store.insert(AdditionalEntityKey::CreateNftFile, AdditionalEntity::CreateNftFile(vec![nft_file])); },
           };
           
-          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: tx.output.clone() };
-          match store.get_mut(&AdditionalEntityKey::UpdateNftFile) {
-            Some(v) => match v { 
-              AdditionalEntity::UpdateNftFile(vec) => vec.push(upd_nft_file.clone()),
-              _ => (),
-            },
-            None => { store.insert(AdditionalEntityKey::UpdateNftFile, AdditionalEntity::UpdateNftFile(vec![upd_nft_file])); },
-          };
-          
-
           let nft_tx = nft_tx::Model::from(tx, tx_entity);
           match store.get_mut(&AdditionalEntityKey::NftTx) {
             Some(v) => match v {
@@ -1725,15 +1694,6 @@ impl ExtractEntity for Transaction {
               _ => (),
             },
             None => { store.insert(AdditionalEntityKey::NftTx, AdditionalEntity::NftTx(vec![nft_tx.clone()])); },
-          };
-
-          let upd_nft_file = UpdateNftFile { token_id: tx.token_id.clone(), owner: nft_tx.to_addr.clone().unwrap() };
-          match store.get_mut(&AdditionalEntityKey::UpdateNftFile) {
-            Some(v) => match v {
-              AdditionalEntity::UpdateNftFile(vec) => vec.push(upd_nft_file.clone()),
-              _ => (),
-            },
-            None => { store.insert(AdditionalEntityKey::UpdateNftFile, AdditionalEntity::UpdateNftFile(vec![upd_nft_file])); },
           };
         },
         TokenTx::EntrustNft(tx) => {
