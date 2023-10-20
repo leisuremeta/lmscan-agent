@@ -15,7 +15,7 @@ impl Balance {
   }
 
   pub fn from(entity: balance_entity::Model) -> Self {
-    Self { free: entity.free, locked: entity.locked, upd_at: entity.updated_at }
+    Self { free: entity.free, locked: entity.locked, upd_at: now() }
   }
 
   pub fn from_state(state: State) -> Self {
