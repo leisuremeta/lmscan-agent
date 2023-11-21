@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
-use crate::{transaction::{TransactionWithResult, Common}, library::common::now};
+use crate::{transaction::{TransactionWithResult, common::Common}, library::common::now};
 
 // The DeriveEntityModel macro does all the heavy lifting of defining an Entity with associating Model, Column and PrimaryKey.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -31,4 +31,3 @@ impl Model {
   }
 }
  
-

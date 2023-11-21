@@ -1,4 +1,4 @@
-use std::{path::{PathBuf, self}, collections::HashSet};
+use std::collections::HashSet;
 
 
 use bigdecimal::ToPrimitive;
@@ -35,5 +35,3 @@ pub fn init_with_compression(sled_path: &str, compression_level: usize) -> Db{
     .open()
     .unwrap()
 }
-
-

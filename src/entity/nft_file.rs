@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
-use crate::{transaction::{MintNft, NftMetaInfo}, library::common::{now, as_timestamp}};
+use crate::{transaction::{token_transaction::MintNft, NftMetaInfo}, library::common::{now, as_timestamp}};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "nft_file")]

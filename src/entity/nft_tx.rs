@@ -1,7 +1,10 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
-use crate::{transaction::{MintNft, Extract, TransferNft, EntrustNft, DisposeEntrustedNft}, tx_entity, library::common::now};
+use crate::{transaction::{
+  NftTx,
+  Extract
+}, tx_entity, library::common::now};
 
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -22,7 +25,6 @@ pub struct Model {
 pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
-
 impl Model {
   pub fn from<T: NftTx>(tx: &T, tx_entity: &tx_entity::ActiveModel) -> ActiveModel {
     ActiveModel {
@@ -38,44 +40,3 @@ impl Model {
 }
 
 impl Extract for ActiveModel {}
-
-pub trait NftTx {
-  fn token_id(&self) -> String;
-  fn sub_type(&self) -> String;
-}
-
-impl NftTx for MintNft {
-  fn token_id(&self) -> String {
-    self.token_id.clone()
-  }
-  fn sub_type(&self) -> String {
-    String::from("MintNft")
-  }
-}
-
-impl NftTx for TransferNft {
-  fn token_id(&self) -> String {
-    self.token_id.clone()
-  }
-  fn sub_type(&self) -> String {
-    String::from("TransferNft")
-  }
-}
-
-impl NftTx for EntrustNft {
-  fn token_id(&self) -> String {
-    self.token_id.clone()
-  }
-  fn sub_type(&self) -> String {
-    String::from("EntrustNft")
-  }
-}
-
-impl NftTx for DisposeEntrustedNft {
-  fn token_id(&self) -> String {
-    self.token_id.clone()
-  }
-  fn sub_type(&self) -> String {
-    String::from("DisposeEntrustedNft")
-  }
-}

@@ -1,10 +1,10 @@
-use std::{fs::File, path::Path, io::Write, collections::{HashMap}};
+use std::{fs::File, path::Path, io::Write, collections::HashMap};
 
 use dotenvy::var;
 use itertools::Itertools;
-use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Transaction, RewardTx, TokenTx, Job}, account_entity};
+use lmscan_agent::{library::common::db_connn, tx_state, transaction::{TransactionWithResult, Job}};
 use sea_orm::{Statement, DbBackend, EntityTrait};
-use lmscan_agent::transaction::Common;
+use lmscan_agent::transaction::common::Common;
 
 
 

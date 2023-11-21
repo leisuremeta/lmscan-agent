@@ -1,8 +1,7 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
-
-use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Transaction, TokenTx, NftMetaInfo}, nft_file, tx_entity, library::common::as_timestamp};
-use dotenvy::{var};
+use lmscan_agent::{service::api_service::ApiService, transaction::{TransactionWithResult, Transaction, token_transaction::TokenTx, NftMetaInfo}, nft_file, tx_entity};
+use dotenvy::var;
 use lmscan_agent::library::common::db_connn;
 use sea_orm::*;
 
@@ -35,6 +34,4 @@ async fn nft_file_info_update() {
       }
     }
   };
-    
-  
 }

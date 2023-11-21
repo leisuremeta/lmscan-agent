@@ -9,7 +9,7 @@ use lmscan_agent::service::finder_service::Finder;
 use lmscan_agent::store::free_balance::FreeBalanceStore;
 use lmscan_agent::store::locked_balance::LockedBalanceStore;
 use lmscan_agent::transaction::{
-    AdditionalEntity, AdditionalEntityKey, Common, ExtractEntity, Job, TransactionWithResult,
+    AdditionalEntity, AdditionalEntityKey, common::Common, ExtractEntity, Job, TransactionWithResult,
 };
 use sea_orm::sea_query::{Expr, OnConflict};
 
@@ -29,7 +29,7 @@ use lmscan_agent::library::common::*;
 use lmscan_agent::summary_app;
 
 use log::error;
-use chrono::{NaiveDateTime, DateTime, Local};
+use chrono::{DateTime, Local};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
@@ -455,7 +455,7 @@ async fn save_diff_state_proc(
 async fn build_saved_state_proc(
     db: &DatabaseConnection,
     mut prev_balance_info: HashMap<String, Balance>,
-    nft_owner_info: &mut HashMap<String, String>,
+    _: &mut HashMap<String, String>,
 ) -> HashMap<String, Balance> {
     println!("build_saved_state_proc started");
     while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await {

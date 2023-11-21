@@ -1,6 +1,4 @@
 use sea_orm::entity::prelude::*;
-use sea_orm::*;
-
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "nft_owner")]
@@ -12,7 +10,6 @@ pub struct Model {
   pub event_time: i64,
   pub created_at: i64,
 }
-
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}

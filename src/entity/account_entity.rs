@@ -2,7 +2,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
 use crate::library::common::{as_timestamp, now};
-use crate::transaction::{CreateAccount, Extract};
+use crate::transaction::{account_transaction::CreateAccount, Extract};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "account")]
