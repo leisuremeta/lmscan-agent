@@ -1,20 +1,23 @@
-use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use crate::{transaction::TransactionWithResult, library::common::from_rawvalue_to_bigdecimal};
+use crate::{library::common::from_rawvalue_to_bigdecimal, transaction::TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BalanceInfo {
-  #[serde(rename = "totalAmount", deserialize_with = "from_rawvalue_to_bigdecimal")]
-  pub total_amount: BigDecimal, // BigDecimal
-  pub unused: HashMap<String, TransactionWithResult>,
+    #[serde(
+        rename = "totalAmount",
+        deserialize_with = "from_rawvalue_to_bigdecimal"
+    )]
+    pub total_amount: BigDecimal, // BigDecimal
+    pub unused: HashMap<String, TransactionWithResult>,
 }
 
-// TODO: 
+// TODO:
 // 1. diff 굉장히 크게나는 계정들 수기 검사.
 // 2. transaction 인풋 아웃풋 크기 비교 => logging
-// Logging 
+// Logging
 //   1) TX Hash
 //   2) sub_type
 //   3) signer

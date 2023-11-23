@@ -1,8 +1,4 @@
-use crate::{
-    entity::*,
-    service::api_service::ApiService,
-    model::lm_price::LmPrice,
-};
+use crate::{entity::*, model::lm_price::LmPrice, service::api_service::ApiService};
 use bigdecimal::BigDecimal;
 use log::error;
 use rust_decimal::prelude::FromPrimitive;
@@ -10,10 +6,10 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sea_orm::DatabaseConnection;
 use sea_orm::*;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
-use serde::{Deserialize, Serialize};
 
 extern crate dotenvy;
 use dotenvy::var;
@@ -63,9 +59,9 @@ async fn get_total_accounts(db: &DatabaseConnection) -> Option<u64> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenBalance {
-  pub status: String,
-  pub message: String,
-  pub result: String,
+    pub status: String,
+    pub message: String,
+    pub result: String,
 }
 
 async fn get_total_balance() -> Option<BigDecimal> {
@@ -77,17 +73,15 @@ async fn get_total_balance() -> Option<BigDecimal> {
         .map(|addr| format!("https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress={lm}&address={addr}&tag=latest&apikey={api_key}"
         ))
         .collect();
-    futures::future::join_all(
-        addrs.into_iter()
-            .map(|url| ApiService::get_request(url))
-        )
+    futures::future::join_all(addrs.into_iter().map(|url| ApiService::get_request(url)))
         .await
         .into_iter()
-        .fold(BigDecimal::from_i32(0), |acc, res: Result<TokenBalance, String>| 
-            match (acc, res.ok()) {
-                (Some(x), Some(tb )) => Some(x + BigDecimal::from_str(&tb.result).unwrap()),
-                _ => BigDecimal::from_i32(0)
-            }
+        .fold(
+            BigDecimal::from_i32(0),
+            |acc, res: Result<TokenBalance, String>| match (acc, res.ok()) {
+                (Some(x), Some(tb)) => Some(x + BigDecimal::from_str(&tb.result).unwrap()),
+                _ => BigDecimal::from_i32(0),
+            },
         )
 }
 

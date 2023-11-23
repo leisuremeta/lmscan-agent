@@ -1,10 +1,10 @@
-pub mod model;
 pub mod entity;
 pub mod library;
+pub mod model;
 pub mod service;
 pub mod store;
 pub mod summary_app;
+pub use entity::*;
 pub use model::block;
 pub use model::transaction;
-pub use entity::*;
 pub use summary_app::summary_loop;
