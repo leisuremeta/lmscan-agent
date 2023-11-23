@@ -9,7 +9,8 @@ use lmscan_agent::service::finder_service::Finder;
 use lmscan_agent::store::free_balance::FreeBalanceStore;
 use lmscan_agent::store::locked_balance::LockedBalanceStore;
 use lmscan_agent::transaction::{
-    AdditionalEntity, AdditionalEntityKey, common::Common, ExtractEntity, Job, TransactionWithResult,
+    common::Common, AdditionalEntity, AdditionalEntityKey, ExtractEntity, Job,
+    TransactionWithResult,
 };
 use sea_orm::sea_query::{Expr, OnConflict};
 
@@ -28,8 +29,8 @@ use itertools::Itertools;
 use lmscan_agent::library::common::*;
 use lmscan_agent::summary_app;
 
-use log::error;
 use chrono::{DateTime, Local};
+use log::error;
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};
@@ -288,11 +289,13 @@ async fn update_all_nft_owner(
     owner_vec: Vec<(String, String, String)>,
     txn: &DatabaseTransaction,
 ) -> bool {
-    if owner_vec.is_empty() { return true }
+    if owner_vec.is_empty() {
+        return true;
+    }
     fn parse_time(str: &String) -> i64 {
         match DateTime::parse_from_rfc3339(str) {
             Ok(x) => x.naive_utc().timestamp(),
-            Err(_) => Local::now().timestamp(), 
+            Err(_) => Local::now().timestamp(),
         }
     }
     let owner_info = owner_vec
@@ -301,7 +304,7 @@ async fn update_all_nft_owner(
         .map(|(token_id, owner, et)| format!("('{token_id}','{owner}',{})", parse_time(et)))
         .collect::<Vec<String>>()
         .join(",");
-    
+
     let query = format!(
         r#"INSERT INTO nft_owner (token_id,owner,event_time)
       VALUES {owner_info}

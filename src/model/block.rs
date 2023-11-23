@@ -1,13 +1,13 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde_with::serde_as]
 pub struct Block {
-  pub header: Header,
-  #[serde(rename = "transactionHashes")]
-  pub transaction_hashes: Vec<String>,
-  pub votes: Vec<Votes>,
+    pub header: Header,
+    #[serde(rename = "transactionHashes")]
+    pub transaction_hashes: Vec<String>,
+    pub votes: Vec<Votes>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

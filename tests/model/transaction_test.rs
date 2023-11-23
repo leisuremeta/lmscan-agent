@@ -2,7 +2,7 @@ use lmscan_agent::model::transaction::*;
 
 #[test]
 pub fn transaction_test() {
-  let no_result_json = r#"
+    let no_result_json = r#"
     {
       "signedTx": {
         "sig": {
@@ -30,7 +30,7 @@ pub fn transaction_test() {
       "result": null
     }
   "#;
-  let json = r#"
+    let json = r#"
   [
     {
       "sig" : {
@@ -446,32 +446,35 @@ pub fn transaction_test() {
   ]
   "#;
 
-  let res = TransactionWithResult::from(no_result_json);
-  assert_eq!(res, Some(
-    TransactionWithResult { 
-      signed_tx: SignedTx { 
-        sig: AccountSignature { 
-          sig: Signature { 
-            v: 28, 
-            r: "549091536c3628a6c7a7c95988cdd863a85bb2a8d42de28016bfb4523359252d".to_string(), 
-            s: "67750967063706d08b53f7079134207ded2b2f7039b01d50b96d551bf0a51bae".to_string() 
-          }, 
-          account: "playnomm".to_string() 
-        }, 
-        value: Transaction::TokenTx(
-          token_transaction::TokenTx::TransferNft(
-            token_transaction::TransferNft { 
-              network_id: 1000, 
-              created_at: "2023-02-24T05:10:42Z".to_string(), 
-              definition_id: "202302061200440725".to_string(), 
-              token_id: "2023020612004400000000087".to_string(), 
-              input: "64c203e4019667ef8c26909c7d717f0b25bac405e8b44e57e5adf38853b0b67d".to_string(), 
-              output: "f9ff65d52bccb9c60f581f7bf5a61c364848b717".to_string(), 
-              memo: Some("Random Box Reveal".to_string()) 
-            }
-          )
-        ) }, 
-        result: None 
-      }
-    ));
+    let res = TransactionWithResult::from(no_result_json);
+    assert_eq!(
+        res,
+        Some(TransactionWithResult {
+            signed_tx: SignedTx {
+                sig: AccountSignature {
+                    sig: Signature {
+                        v: 28,
+                        r: "549091536c3628a6c7a7c95988cdd863a85bb2a8d42de28016bfb4523359252d"
+                            .to_string(),
+                        s: "67750967063706d08b53f7079134207ded2b2f7039b01d50b96d551bf0a51bae"
+                            .to_string()
+                    },
+                    account: "playnomm".to_string()
+                },
+                value: Transaction::TokenTx(token_transaction::TokenTx::TransferNft(
+                    token_transaction::TransferNft {
+                        network_id: 1000,
+                        created_at: "2023-02-24T05:10:42Z".to_string(),
+                        definition_id: "202302061200440725".to_string(),
+                        token_id: "2023020612004400000000087".to_string(),
+                        input: "64c203e4019667ef8c26909c7d717f0b25bac405e8b44e57e5adf38853b0b67d"
+                            .to_string(),
+                        output: "f9ff65d52bccb9c60f581f7bf5a61c364848b717".to_string(),
+                        memo: Some("Random Box Reveal".to_string())
+                    }
+                ))
+            },
+            result: None
+        })
+    );
 }

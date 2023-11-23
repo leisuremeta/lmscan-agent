@@ -679,16 +679,34 @@ impl Common for TokenTx {
     ) -> ActiveModel {
         match self {
             TokenTx::BurnNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::EntrustNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::EntrustFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::TransferNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::TransferFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+            TokenTx::EntrustNft(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::EntrustFungibleToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::TransferNft(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::TransferFungibleToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
             TokenTx::MintNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::MintFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::DefineToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::DisposeEntrustedNft(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::DisposeEntrustedFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
-            TokenTx::BurnFungibleToken(t) => t.from(hash, from_account, block_hash, block_number, json, tx),
+            TokenTx::MintFungibleToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::DefineToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::DisposeEntrustedNft(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::DisposeEntrustedFungibleToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
+            TokenTx::BurnFungibleToken(t) => {
+                t.from(hash, from_account, block_hash, block_number, json, tx)
+            }
         }
     }
 }
