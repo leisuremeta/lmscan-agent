@@ -413,7 +413,7 @@ async fn save_diff_state_proc(
     let mut txs = vec![];
 
     while is_conitnue {
-        let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await;
+        let block = ApiService::get_block_always(&curr_block_hash.to_owned()).await.ok().unwrap();
         if block.header.number % 1000 == 0 {
             println!(
                 "block number: {}, hash: {}",
@@ -621,7 +621,7 @@ async fn block_check_loop(db: DatabaseConnection) {
         let mut nft_owner_info = get_nft_owner_infos(&db).await;
         balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
         loop {
-            let ref node_status = ApiService::get_node_status_always().await;
+            let ref node_status = ApiService::get_node_status_always().await.ok().unwrap();
             let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
             save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
 

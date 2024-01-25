@@ -20,7 +20,7 @@ impl Finder {
             .unwrap()
         {
             Some(model) => serde_json::from_str(&model.json).unwrap(),
-            None => ApiService::get_tx_always(hash).await,
+            None => ApiService::get_tx_always(hash).await.ok().unwrap(),
         }
     }
 }

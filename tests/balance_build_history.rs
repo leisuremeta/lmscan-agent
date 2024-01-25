@@ -404,19 +404,6 @@ fn outputs(tx_res: &TransactionWithResult) -> Option<HashMap<String, BigDecimal>
     }
 }
 
-fn remainder(tx_res: &TransactionWithResult) -> Option<BigDecimal> {
-    match &tx_res.signed_tx.value {
-        Transaction::TokenTx(tx) => match tx {
-            TokenTx::EntrustFungibleToken(t) => match tx_res.result.as_ref().unwrap() {
-                TransactionResult::EntrustFungibleTokenResult(res) => Some(res.remainder.clone()),
-                _ => panic!("invalid ExecuteRewardResult"),
-            },
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 fn output_sum_in_latest_tx(tx_res: &TransactionWithResult) -> BigDecimal {
     outputs(tx_res)
         .map(|outputs| outputs.values().into_iter().sum())
@@ -469,17 +456,6 @@ fn extract_subtype(input_tx_with_res: &TransactionWithResult) -> &str {
         },
         _ => panic!(),
     }
-}
-
-fn extract_updated_balance_accounts(
-    account_balance_info: &HashMap<String, BigDecimal>,
-    balanced_updated_accounts: HashSet<String>,
-) -> HashMap<String, BigDecimal> {
-    account_balance_info
-        .iter()
-        .filter(|(k, _)| balanced_updated_accounts.contains(*k))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
 }
 
 fn extract_outputs_from_input_tx_for_withdraw(
