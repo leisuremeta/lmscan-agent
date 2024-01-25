@@ -18,9 +18,3 @@ pub struct Value {
     #[serde(rename = "msg")]
     pub msg: String,
 }
-
-impl Value {
-    pub fn is_not_found_err(&self) -> bool {
-        self.msg.contains("not found")
-    }
-}

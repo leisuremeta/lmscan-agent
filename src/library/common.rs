@@ -110,10 +110,6 @@ where
         .collect()
 }
 
-pub fn is_not_found_err(msg: &str) -> bool {
-    msg.contains("not found")
-}
-
 pub fn as_path_buf(sled_path: &str) -> PathBuf {
     let mut path = std::env::current_dir().unwrap();
     path.push(sled_path);
