@@ -9,6 +9,7 @@ use crate::{
 };
 use futures_util::TryFutureExt;
 use lazy_static::lazy_static;
+use log::error;
 use std::fmt::Debug;
 use reqwest::Url;
 
@@ -52,11 +53,9 @@ impl ApiService {
             match CLIENT.get(url.as_str()).send().await {
                 Ok(res) => match res.json::<S>().await {
                     Ok(payload) => return Some(payload),
-                    Err(err) => {
-                        println!("get_request_until parse err '{err}' - {:?}", url.as_str())
-                    }
+                    Err(err) => error!("get_request_until parse err '{err}' - {:?}", url.as_str())
                 },
-                Err(err) => println!("get_request_until err '{err}' - {:?}", url.as_str()),
+                Err(err) => error!("get_request_until err '{err}' - {:?}", url.as_str()),
             }
         }
         None

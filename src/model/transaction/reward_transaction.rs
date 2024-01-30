@@ -5,7 +5,7 @@ use sea_orm::Set;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    library::common::{as_timestamp, as_vec, from_rawvalue_to_bigdecimal_map, now},
+    library::common::{as_timestamp, as_vec, now},
     tx_entity::ActiveModel,
 };
 
@@ -68,7 +68,6 @@ pub struct OfferReward {
     #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
     pub memo: Option<String>,
 }

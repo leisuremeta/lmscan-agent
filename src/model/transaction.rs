@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 extern crate chrono;
-use crate::library::common::{from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
 use crate::service::api_service::ApiService;
 use crate::service::finder_service::Finder;
 use crate::store::free_balance::FreeBalanceStore;
@@ -72,26 +71,22 @@ pub struct AddPublicKeySummariesResult {
 pub struct BurnFungibleTokenResult {
     #[serde(
         rename = "outputAmount",
-        deserialize_with = "from_rawvalue_to_bigdecimal"
     )]
     pub output_amount: BigDecimal,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntrustFungibleTokenResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
     pub remainder: BigDecimal,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteRewardResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecuteOwnershipRewardResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
 }
 
@@ -99,7 +94,6 @@ pub struct ExecuteOwnershipRewardResult {
 pub struct VoteSimpleAgendaResult {
     #[serde(
         rename = "votingAmount",
-        deserialize_with = "from_rawvalue_to_bigdecimal"
     )]
     pub voting_amount: BigDecimal,
 }
@@ -350,12 +344,15 @@ impl Job for TransactionWithResult {
                 TokenTx::EntrustFungibleToken(t) => {
                     let from_account = &self.signed_tx.sig.account;
                     info.get_mut(from_account).map(|b| b.add_locked(&t.amount));
-                    let entry = info
+                    match info
                         .get_key_value(from_account)
-                        .map(|(k, v)| (k.clone(), v.locked()))
-                        .unwrap();
-                    LockedBalanceStore::insert0(state_info, entry);
-                    updated_accounts.insert(from_account.clone());
+                        .map(|(k, v)| (k.clone(), v.locked())) {
+                            Some(entry) => {
+                                LockedBalanceStore::insert0(state_info, entry);
+                                updated_accounts.insert(from_account.clone());
+                            },
+                            _ => (),
+                        }
                 }
                 TokenTx::DisposeEntrustedFungibleToken(t) => {
                     // Dispose locked balance
@@ -371,12 +368,15 @@ impl Job for TransactionWithResult {
                             let input_signer = input_tx.signed_tx.sig.account;
                             info.get_mut(&input_signer)
                                 .map(|b| b.sub_locked(&entrust.amount));
-                            let entry = info
+                            match info
                                 .get_key_value(&input_signer)
-                                .map(|(k, v)| (k.clone(), v.locked()))
-                                .unwrap();
-                            LockedBalanceStore::insert(state_info, entry, input_hash.clone());
-                            updated_accounts.insert(input_signer);
+                                .map(|(k, v)| (k.clone(), v.locked())) {
+                                    Some(entry) => {
+                                        LockedBalanceStore::insert(state_info, entry, input_hash.clone());
+                                        updated_accounts.insert(input_signer);
+                                    },
+                                    _ => (),
+                                }
                         }
                     }
                 }

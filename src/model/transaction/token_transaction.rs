@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     library::common::{
-        as_timestamp, as_vec, from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map, now,
+        as_timestamp, as_vec, now,
     },
     tx_entity::ActiveModel,
 };
@@ -73,7 +73,6 @@ pub struct EntrustFungibleToken {
     pub created_at: String,
     #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
     pub amount: BigDecimal,
     pub inputs: HashSet<String>,
     pub to: String,
@@ -87,7 +86,6 @@ pub struct BurnFungibleToken {
     pub created_at: String,
     #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
     pub amount: BigDecimal,
     pub inputs: HashSet<String>,
 }
@@ -116,7 +114,6 @@ pub struct TransferFungibleToken {
     #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
     pub memo: Option<String>,
 }
@@ -147,7 +144,6 @@ pub struct MintFungibleToken {
     pub created_at: String,
     #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
 }
 
@@ -228,7 +224,6 @@ pub struct DisposeEntrustedFungibleToken {
     #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub inputs: HashSet<String>,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
 }
 
