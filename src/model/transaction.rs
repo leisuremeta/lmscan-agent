@@ -48,17 +48,11 @@ pub struct TransactionWithResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionResult {
-    #[serde(rename = "AddPublicKeySummariesResult")]
     AddPublicKeySummariesResult(AddPublicKeySummariesResult),
-    #[serde(rename = "BurnFungibleTokenResult")]
     BurnFungibleTokenResult(BurnFungibleTokenResult),
-    #[serde(rename = "EntrustFungibleTokenResult")]
     EntrustFungibleTokenResult(EntrustFungibleTokenResult),
-    #[serde(rename = "ExecuteRewardResult")]
     ExecuteRewardResult(ExecuteRewardResult),
-    #[serde(rename = "ExecuteOwnershipRewardResult")]
     ExecuteOwnershipRewardResult(ExecuteOwnershipRewardResult),
-    #[serde(rename = "VoteSimpleAgendaResult")]
     VoteSimpleAgendaResult(VoteSimpleAgendaResult),
 }
 
@@ -69,9 +63,7 @@ pub struct AddPublicKeySummariesResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BurnFungibleTokenResult {
-    #[serde(
-        rename = "outputAmount",
-    )]
+    #[serde(rename = "outputAmount")]
     pub output_amount: BigDecimal,
 }
 
@@ -118,15 +110,10 @@ pub struct Signature {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Transaction {
-    #[serde(rename = "RewardTx")]
     RewardTx(RewardTx),
-    #[serde(rename = "TokenTx")]
     TokenTx(TokenTx),
-    #[serde(rename = "AccountTx")]
     AccountTx(AccountTx),
-    #[serde(rename = "GroupTx")]
     GroupTx(GroupTx),
-    #[serde(rename = "AgendaTx")]
     AgendaTx(AgendaTx),
 }
 
@@ -589,21 +576,10 @@ pub trait ExtractEntity {
         tx_entity: &tx_entity::ActiveModel,
         store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>,
     );
-    fn is_locked_fungible_tx(&self) -> bool;
 }
 
 #[async_trait]
 impl ExtractEntity for Transaction {
-    fn is_locked_fungible_tx(&self) -> bool {
-        if let Transaction::TokenTx(
-            TokenTx::EntrustFungibleToken(_) | TokenTx::DisposeEntrustedFungibleToken(_),
-        ) = self
-        {
-            return true;
-        }
-        false
-    }
-
     async fn extract_additional_entity(
         &self,
         tx_entity: &tx_entity::ActiveModel,
@@ -631,7 +607,7 @@ impl ExtractEntity for Transaction {
             Transaction::TokenTx(tx) => match tx {
                 TokenTx::MintNft(tx) => {
                     let nft_meta_info_opt =
-                        ApiService::get_request_until(tx.data_url.clone(), 5).await;
+                        ApiService::get_request_until(tx.data_url.clone(), 1).await;
                     let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
                     match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
                         Some(v) => match v {

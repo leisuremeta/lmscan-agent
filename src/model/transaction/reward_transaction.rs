@@ -13,17 +13,11 @@ use super::{common::Common, TransactionResult, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RewardTx {
-    #[serde(rename = "RecordActivity")]
     RecordActivity(RecordActivity),
-    #[serde(rename = "RegisterDao")]
     RegisterDao(RegisterDao),
-    #[serde(rename = "UpdateDao")]
     UpdateDao(UpdateDao),
-    #[serde(rename = "OfferReward")]
     OfferReward(OfferReward),
-    #[serde(rename = "ExecuteReward")]
     ExecuteReward(ExecuteReward),
-    #[serde(rename = "ExecuteOwnershipReward")]
     ExecuteOwnershipReward(ExecuteOwnershipReward),
 }
 
@@ -34,38 +28,30 @@ pub struct DaoActivity {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecordActivity {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub timestamp: String,
-    #[serde(rename = "userActivity")]
     pub user_activity: HashMap<String, Vec<DaoActivity>>,
-    #[serde(rename = "tokenReceived")]
     pub token_received: HashMap<String, Vec<DaoActivity>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterDao {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "groupId")]
     pub group_id: String,
-    #[serde(rename = "daoAccountName")]
     pub dao_account_name: String,
     pub moderators: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OfferReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
     pub outputs: HashMap<String, BigDecimal>,
@@ -73,37 +59,29 @@ pub struct OfferReward {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateDao {
-    #[serde(rename = "networkId")]
     network_id: i64,
-    #[serde(rename = "createdAt")]
     created_at: String,
-    #[serde(rename = "groupId")]
     group_id: String,
     moderators: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "daoAccount")]
     pub dao_account: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteOwnershipReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub definition_id: String,
-    #[serde(rename = "inputs")]
     pub inputs: HashSet<String>,
-    #[serde(rename = "targets")]
     pub targets: Vec<String>,
 }
 

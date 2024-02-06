@@ -20,58 +20,45 @@ pub enum TokenTx {
     BurnNft(BurnNft),
     #[serde(rename = "EntrustNFT")]
     EntrustNft(EntrustNft),
-    #[serde(rename = "EntrustFungibleToken")]
     EntrustFungibleToken(EntrustFungibleToken),
-    #[serde(rename = "BurnFungibleToken")]
     BurnFungibleToken(BurnFungibleToken),
     #[serde(rename = "TransferNFT")]
     TransferNft(TransferNft),
-    #[serde(rename = "TransferFungibleToken")]
     TransferFungibleToken(TransferFungibleToken),
     #[serde(rename = "MintNFT")]
     MintNft(MintNft),
-    #[serde(rename = "MintFungibleToken")]
     MintFungibleToken(MintFungibleToken),
-    #[serde(rename = "DefineToken")]
     DefineToken(DefineToken),
     #[serde(rename = "DisposeEntrustedNFT")]
     DisposeEntrustedNft(DisposeEntrustedNft),
-    #[serde(rename = "DisposeEntrustedFungibleToken")]
     DisposeEntrustedFungibleToken(DisposeEntrustedFungibleToken),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BurnNft {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub input: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EntrustNft {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(rename = "tokenId")]
     pub token_id: String,
     pub input: String,
     pub to: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EntrustFungibleToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub amount: BigDecimal,
     pub inputs: HashSet<String>,
@@ -79,26 +66,21 @@ pub struct EntrustFungibleToken {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BurnFungibleToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub amount: BigDecimal,
     pub inputs: HashSet<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransferNft {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(rename = "tokenId")]
     pub token_id: String,
     pub input: String,
     pub output: String,
@@ -106,12 +88,10 @@ pub struct TransferNft {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransferFungibleToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
     pub outputs: HashMap<String, BigDecimal>,
@@ -119,109 +99,73 @@ pub struct TransferFungibleToken {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct MintNft {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
-    #[serde(rename = "tokenId")]
     pub token_id: String,
     pub rarity: String,
-    #[serde(rename = "dataUrl")]
     pub data_url: String,
-    #[serde(rename = "contentHash")]
     pub content_hash: String,
     pub output: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MintFungibleToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub outputs: HashMap<String, BigDecimal>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DefineToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub name: String,
     pub symbol: Option<String>,
-    #[serde(rename = "minterGroup")]
     pub minter_group: Option<String>,
-    #[serde(rename = "nftInfo")]
     pub nft_info: Option<NftInfo>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
 pub struct NftInfo {
-    pub some: Option<Some>,
+    #[serde(rename= "Some")]
+    pub some: Inner,
 }
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct Some {
-    #[serde(rename = "value")]
+pub struct Inner {
     pub value: Value,
 }
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "camelCase")]
 pub struct Value {
-    #[serde(rename = "minter")]
     pub minter: String,
-    #[serde(rename = "rarity")]
-    pub rarity: Rarity,
-    #[serde(rename = "dataUrl")]
+    pub rarity: HashMap<String, BigDecimal>,
     pub data_url: String,
-    #[serde(rename = "contentHash")]
     pub content_hash: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Rarity {
-    #[serde(rename = "LGDY")]
-    pub lgdy: Option<i64>,
-    #[serde(rename = "UNIQ")]
-    pub uniq: Option<i64>,
-    #[serde(rename = "EPIC")]
-    pub epic: Option<i64>,
-    #[serde(rename = "RARE")]
-    pub rare: Option<i64>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DisposeEntrustedNft {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
-    #[serde(rename = "tokenId")]
     pub token_id: String,
     pub input: String,
     pub output: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DisposeEntrustedFungibleToken {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "definitionId")]
     pub definition_id: String,
     pub inputs: HashSet<String>,
     pub outputs: HashMap<String, BigDecimal>,

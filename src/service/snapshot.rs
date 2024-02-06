@@ -49,8 +49,8 @@ pub async fn daily_snapshot(db: &DatabaseConnection) {
     for (address, balance) in balances.into_iter() {
         let (scan_free, scan_locked) = (balance.free(), balance.locked());
 
-        let blc_free = balance_from_blockchain(|| ApiService::get_free_balance(&address)).await;
-        let blc_locked = balance_from_blockchain(|| ApiService::get_locked_balance(&address)).await;
+        let blc_free = balance_from_blockchain(|| ApiService::get_balance(&address, "free")).await;
+        let blc_locked = balance_from_blockchain(|| ApiService::get_balance(&address, "locked")).await;
 
         if match (scan_free == blc_free, scan_locked == blc_locked) {
       (true,  true)  => true,
@@ -115,9 +115,9 @@ pub async fn daily_snapshot(db: &DatabaseConnection) {
 async fn balance_from_blockchain<F, Fut>(balance_fetcher: F) -> BigDecimal
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Result<Option<HashMap<String, BalanceInfo>>, String>>,
+    Fut: Future<Output = Result<HashMap<String, BalanceInfo>, String>>,
 {
-    let response = balance_fetcher().await.unwrap().unwrap();
+    let response = balance_fetcher().await.unwrap();
     let total_amount = response
         .get("LM")
         .ok_or("LM not found in response")

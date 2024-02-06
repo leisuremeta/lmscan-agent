@@ -34,15 +34,10 @@ impl ApiService {
             .send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
     }
 
-    pub async fn get_request_t(
-        url: Url,
-    ) -> Result<String, String> {
-        CLIENT.get(url).send().and_then(|res| res.text()).map_err(|e| e.to_string()).await
-    }
     pub async fn get_request<S: serde::de::DeserializeOwned + Debug>(
         url: Url,
     ) -> Result<S, String> {
-        CLIENT.get(url).send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
+        CLIENT.get(url.as_str()).send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
     }
 
     pub async fn get_request_until<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(
@@ -85,30 +80,11 @@ impl ApiService {
         .unwrap()
     }
 
-    pub async fn get_free_balance(
-        address: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_balance(address, "free").await
-    }
-
-    pub async fn get_locked_balance(
-        address: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_balance(address, "locked").await
-    }
-
     pub async fn get_balance(
         address: &str,
         movable: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_request_t(Url::parse(format!("{}/balance/{address}?movable={movable}", BASE_URI).as_str()).unwrap())
+    ) -> Result<HashMap<String, BalanceInfo>, String> {
+        Self::get_request(Url::parse(format!("{}/balance/{address}?movable={movable}", BASE_URI).as_str()).unwrap())
         .await
-        .and_then(|txt| 
-            serde_json::from_str::<HashMap<String, BalanceInfo>>(&txt)
-            .map_or_else(|err| if txt.contains("not found") {
-                Ok(None)
-            } else {
-                Err(err.to_string())
-            }, |v| Ok(Some(v))))
     }
 }

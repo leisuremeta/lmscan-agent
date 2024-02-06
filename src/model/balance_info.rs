@@ -9,7 +9,7 @@ pub struct BalanceInfo {
     #[serde(
         rename = "totalAmount",
     )]
-    pub total_amount: BigDecimal, // BigDecimal
+    pub total_amount: BigDecimal,
     pub unused: HashMap<String, TransactionWithResult>,
 }
 

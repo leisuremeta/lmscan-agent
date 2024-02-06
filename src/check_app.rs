@@ -27,7 +27,7 @@ use chrono::{DateTime, Local};
 use log::{error, info};
 use tokio::time::sleep;
 
-static DOWNLOAD_BATCH_UNIT: u32 = 50;
+static DOWNLOAD_BATCH_UNIT: usize = 500;
 static BUILD_BATCH_UNIT: u64 = 50;
 
 async fn get_last_built_or_genesis_block_hash(
@@ -116,8 +116,6 @@ async fn save_diff_state_proc(
     db: &DatabaseConnection,
 ) {
     let mut is_conitnue = !curr_block_hash.eq(&target_hash);
-
-    let mut block_counter = 0;
     let mut block_states = vec![];
     let mut txs = vec![];
 
@@ -151,11 +149,10 @@ async fn save_diff_state_proc(
             }
         }
 
-        block_counter += 1;
         curr_block_hash = block.header.parent_hash.clone();
         is_conitnue = !curr_block_hash.eq(&target_hash);
 
-        if !is_conitnue || block_counter == DOWNLOAD_BATCH_UNIT {
+        if !is_conitnue || (block_states.len() + txs.len()) >= DOWNLOAD_BATCH_UNIT {
             let txn = db.begin().await.unwrap();
             let r1 = block_state::Entity::insert_many(block_states.clone())
                 .on_conflict(
@@ -175,7 +172,6 @@ async fn save_diff_state_proc(
                 .await;
 
             if r1.and(r2).is_ok() {
-                block_counter = 0;
                 block_states.clear();
                 txs.clear();
                 txn.commit().await.unwrap();
@@ -447,5 +443,6 @@ pub async fn check_loop(db: DatabaseConnection) {
         }
     })
     .await
+    .map_err(|err| error!("{err}"))
     .unwrap()
 }
