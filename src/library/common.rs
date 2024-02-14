@@ -34,7 +34,7 @@ pub fn now() -> i64 {
 }
 
 pub fn as_timestamp(str_date: &str) -> i64 {
-    match NaiveDateTime::parse_from_str(str_date.clone(), "%Y-%m-%dT%H:%M:%S%.3fZ") {
+    match NaiveDateTime::parse_from_str(str_date, "%Y-%m-%dT%H:%M:%S%.3fZ") {
         Ok(v) => v.timestamp(),
         Err(err) => panic!("timestamp parse err '{str_date}' - {err}"),
     }

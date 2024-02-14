@@ -322,7 +322,7 @@ impl Common for ExecuteOwnershipReward {
             hash: Set(hash),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
-            sub_type: Set("ExecuteReward".to_string()),
+            sub_type: Set("ExecuteOwnershipReward".to_string()),
             from_addr: Set(from_account),
             to_addr: Set(to_accounts),
             block_hash: Set(block_hash),

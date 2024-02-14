@@ -30,15 +30,6 @@ use self::token_transaction::*;
 
 use super::balance::Balance;
 
-impl TransactionWithResult {
-    pub fn from(json: &str) -> Option<TransactionWithResult> {
-        match serde_json::from_str::<TransactionWithResult>(json) {
-            Ok(tx_res) => Some(tx_res),
-            Err(err) => panic!("TransactionWithResult encode err: {err}"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransactionWithResult {
     #[serde(rename = "signedTx")]
@@ -147,7 +138,6 @@ impl Common for Transaction {
         json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel {
-        let from_account = from_account.to_owned();
         match self {
             Transaction::RewardTx(t) => {
                 t.from(hash, from_account, block_hash, block_number, json, tx)
@@ -608,7 +598,7 @@ impl ExtractEntity for Transaction {
                 TokenTx::MintNft(tx) => {
                     let nft_meta_info_opt =
                         ApiService::get_request_until(tx.data_url.clone(), 1).await;
-                    let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
+                    let nft_file = nft_file::Model::from(tx, nft_meta_info_opt, tx.data_url.clone());
                     match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
                         Some(v) => match v {
                             AdditionalEntity::CreateNftFile(vec) => vec.push(nft_file.clone()),

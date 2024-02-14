@@ -29,7 +29,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-    pub fn from(tx: &MintNft, info_opt: Option<NftMetaInfo>) -> ActiveModel {
+    pub fn from(tx: &MintNft, info_opt: Option<NftMetaInfo>, url: String) -> ActiveModel {
         let info = info_opt.unwrap_or_default();
         ActiveModel {
             token_id: Set(tx.token_id.clone()),
@@ -38,7 +38,7 @@ impl Model {
             nft_name: Set(info.nft_name),
             nft_uri: Set(info.nft_uri.clone()),
             creator_description: Set(info.creator_description),
-            data_url: Set(info.nft_uri.clone()),
+            data_url: Set(url),
             rarity: Set(info.rarity),
             creator: Set(info.creator),
             event_time: Set(as_timestamp(&tx.created_at)),
