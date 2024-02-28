@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 use crate::{
     block::Block,
     model::{
@@ -13,16 +13,22 @@ use log::error;
 use std::fmt::Debug;
 use reqwest::Url;
 
+extern crate dotenvy;
+use dotenvy::var;
+
 lazy_static! {
     static ref CLIENT: reqwest::Client = reqwest::Client::new();
+    static ref BASE: String = var("BASE_URL").expect("URL must be set");
 }
-
-// const BASE_URI: &str = "http://lmc.leisuremeta.io";
-const BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 pub struct ApiService;
 
 impl ApiService {
+    fn make_url(param: &str) -> Url {
+        let mut url = Url::from_str(BASE.as_str()).unwrap();
+        url.set_path(param);
+        url
+    }
     pub async fn get_request_header_always<
         S: serde::de::DeserializeOwned + Debug,
     >(
@@ -57,21 +63,21 @@ impl ApiService {
     }
 
     pub async fn get_node_status_always() -> Result<NodeStatus, String> {
-        Self::get_request(Url::parse(format!("{}/status", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url("/status")).await
     }
 
     pub async fn get_block_always(hash: &str) -> Result<Block, String> {
-        Self::get_request(Url::parse(format!("{}/block/{hash}", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url(&("/block/".to_owned() + hash))).await
     }
 
     pub async fn get_tx_always(hash: &str) -> Result<TransactionWithResult, String> {
-        Self::get_request(Url::parse(format!("{}/tx/{hash}", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url(&("/tx/".to_owned() + hash))).await
     }
 
     pub async fn get_tx_with_json_always(hash: &str) -> (TransactionWithResult, String) {
         Self::get_request::<TransactionWithResult>(
-            Url::parse(format!("{}/tx/{hash}", BASE_URI).as_str()).unwrap())
-        .await
+            Self::make_url(&("/tx/".to_owned() + hash))
+        ).await
         .and_then(|result| 
             serde_json::to_string(&result)
             .map(|txt| (result, txt))
@@ -84,7 +90,8 @@ impl ApiService {
         address: &str,
         movable: &str,
     ) -> Result<HashMap<String, BalanceInfo>, String> {
-        Self::get_request(Url::parse(format!("{}/balance/{address}?movable={movable}", BASE_URI).as_str()).unwrap())
-        .await
+        let mut url = Self::make_url(&("/balance/".to_owned() + address));
+        url.set_query(Some(&("movable=".to_owned() + movable)));
+        Self::get_request(url).await
     }
 }

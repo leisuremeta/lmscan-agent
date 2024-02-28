@@ -39,47 +39,20 @@ pub struct TransactionWithResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionResult {
-    AddPublicKeySummariesResult(AddPublicKeySummariesResult),
-    BurnFungibleTokenResult(BurnFungibleTokenResult),
-    EntrustFungibleTokenResult(EntrustFungibleTokenResult),
-    ExecuteRewardResult(ExecuteRewardResult),
-    ExecuteOwnershipRewardResult(ExecuteOwnershipRewardResult),
-    VoteSimpleAgendaResult(VoteSimpleAgendaResult),
+    AddPublicKeySummariesResult { removed :HashMap<String, String> },
+    BurnFungibleTokenResult {
+        #[serde(rename = "outputAmount")]
+        output_amount: BigDecimal,
+    },
+    EntrustFungibleTokenResult { remainder: BigDecimal },
+    ExecuteRewardResult { outputs: HashMap<String, BigDecimal> },
+    ExecuteOwnershipRewardResult { outputs: HashMap<String, BigDecimal> },
+    VoteSimpleAgendaResult {
+        #[serde(rename = "votingAmount")]
+        voting_amount: BigDecimal,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AddPublicKeySummariesResult {
-    pub removed: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BurnFungibleTokenResult {
-    #[serde(rename = "outputAmount")]
-    pub output_amount: BigDecimal,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EntrustFungibleTokenResult {
-    pub remainder: BigDecimal,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExecuteRewardResult {
-    pub outputs: HashMap<String, BigDecimal>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExecuteOwnershipRewardResult {
-    pub outputs: HashMap<String, BigDecimal>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct VoteSimpleAgendaResult {
-    #[serde(
-        rename = "votingAmount",
-    )]
-    pub voting_amount: BigDecimal,
-}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignedTx {
     pub sig: AccountSignature,
@@ -282,6 +255,11 @@ impl Job for TransactionWithResult {
                     tx.output.clone(),
                     tx.created_at.clone(),
                 )),
+                TokenTx::DisposeEntrustedNft(tx) => Some((
+                    tx.token_id.clone(),
+                    tx.output.clone().unwrap_or(String::new()),
+                    tx.created_at.clone(),
+                )),
                 _ => None,
             }
         } else {
@@ -391,12 +369,12 @@ impl Job for TransactionWithResult {
                 Transaction::RewardTx(rw) => match rw {
                     RewardTx::OfferReward(t) => t.outputs,
                     RewardTx::ExecuteReward(_) => match input_tx_with_res.result.unwrap() {
-                        TransactionResult::ExecuteRewardResult(res) => res.outputs,
+                        TransactionResult::ExecuteRewardResult {outputs} => outputs,
                         _ => panic!("invalid ExecuteRewardResult"),
                     },
                     RewardTx::ExecuteOwnershipReward(_) => {
                         match input_tx_with_res.result.unwrap() {
-                            TransactionResult::ExecuteOwnershipRewardResult(res) => res.outputs,
+                            TransactionResult::ExecuteOwnershipRewardResult{outputs} => outputs,
                             _ => panic!("invalid ExecuteOwnershipRewardResult"),
                         }
                     }
@@ -408,14 +386,14 @@ impl Job for TransactionWithResult {
                     TokenTx::DisposeEntrustedFungibleToken(t) => t.outputs,
                     TokenTx::BurnFungibleToken(_) => {
                         let output_amount = match input_tx_with_res.result.unwrap() {
-                            TransactionResult::BurnFungibleTokenResult(res) => res.output_amount,
+                            TransactionResult::BurnFungibleTokenResult { output_amount } => output_amount,
                             _ => panic!("invalid ExecuteOwnershipRewardResult"),
                         };
                         HashMap::from([(from_account.clone(), output_amount)])
                     }
                     TokenTx::EntrustFungibleToken(_) => {
                         let remainder = match input_tx_with_res.result.unwrap() {
-                            TransactionResult::EntrustFungibleTokenResult(res) => res.remainder,
+                            TransactionResult::EntrustFungibleTokenResult { remainder } => remainder,
                             _ => panic!("invalid EntrustFungibleTokenResult"),
                         };
                         HashMap::from([(from_account.clone(), remainder)])
@@ -436,14 +414,14 @@ impl Job for TransactionWithResult {
                     Some((Some(t.outputs), t.inputs))
                 }
                 RewardTx::ExecuteOwnershipReward(t) => match self.result.clone().unwrap() {
-                    TransactionResult::ExecuteOwnershipRewardResult(res) => {
-                        Some((Some(res.outputs), t.inputs))
+                    TransactionResult::ExecuteOwnershipRewardResult { outputs } => {
+                        Some((Some(outputs), t.inputs))
                     }
                     _ => None,
                 },
                 RewardTx::ExecuteReward(_) => match self.result.clone().unwrap() {
-                    TransactionResult::ExecuteRewardResult(res) => {
-                        Some((Some(res.outputs), HashSet::new()))
+                    TransactionResult::ExecuteRewardResult { outputs } => {
+                        Some((Some(outputs), HashSet::new()))
                     }
                     _ => None,
                 },
@@ -457,7 +435,7 @@ impl Job for TransactionWithResult {
                 }
                 TokenTx::EntrustFungibleToken(t) => {
                     let remainder = match (&self.result).as_ref().unwrap() {
-                        TransactionResult::EntrustFungibleTokenResult(res) => &res.remainder,
+                        TransactionResult::EntrustFungibleTokenResult { remainder } => remainder,
                         _ => panic!("invalid BurnFungibleTokenResult"),
                     };
                     info.get_mut(from_account).map(|b| b.add_free(remainder));
@@ -465,7 +443,7 @@ impl Job for TransactionWithResult {
                 }
                 TokenTx::BurnFungibleToken(t) => {
                     let output_amount = match (&self.result).as_ref().unwrap() {
-                        TransactionResult::BurnFungibleTokenResult(res) => &res.output_amount,
+                        TransactionResult::BurnFungibleTokenResult { output_amount } => output_amount,
                         _ => panic!("invalid BurnFungibleTokenResult"),
                     };
                     info.get_mut(from_account)

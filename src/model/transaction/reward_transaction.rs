@@ -245,14 +245,14 @@ impl Common for ExecuteReward {
     ) -> ActiveModel {
         let (to_accounts, output_vals) = match tx.result {
             Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteRewardResult(res) => (
-                    res.outputs
+                TransactionResult::ExecuteRewardResult { outputs } => (
+                    outputs
                         .keys()
                         .into_iter()
                         .map(|to| to.to_string())
                         .collect(),
                     Some(
-                        res.outputs
+                        outputs
                             .into_iter()
                             .map(|(k, v)| k + "/" + &v.to_string())
                             .collect(),
@@ -300,14 +300,14 @@ impl Common for ExecuteOwnershipReward {
     ) -> ActiveModel {
         let (to_accounts, output_vals) = match tx.result {
             Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteOwnershipRewardResult(res) => (
-                    res.outputs
+                TransactionResult::ExecuteOwnershipRewardResult { outputs } => (
+                    outputs
                         .keys()
                         .into_iter()
                         .map(|to| to.to_string())
                         .collect(),
                     Some(
-                        res.outputs
+                        outputs
                             .into_iter()
                             .map(|(k, v)| k + "/" + &v.to_string())
                             .collect(),

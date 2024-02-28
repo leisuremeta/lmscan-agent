@@ -352,7 +352,20 @@ async fn build_saved_state_proc(
                         }
                     }
                     if !nft_owner_vec.is_empty() {
-                        let owners = nft_owner_vec.iter().sorted_by(|a, b| a.2.cmp(&b.2)).map(
+                        let mut m: HashMap<String, &(String, String, String)> = HashMap::new();
+                        for tuple in nft_owner_vec.iter() {
+                            match m.get(&tuple.0) {
+                                Some(other) => {
+                                    if tuple.2.cmp(&other.2).is_le() {
+                                        continue;
+                                    } else {
+                                        m.insert(tuple.0.clone(), tuple);
+                                    }
+                                }
+                                None => { m.insert(tuple.0.clone(), tuple); }
+                            }
+                        }
+                        let owners = m.into_values().map(
                             |(ti, ow, et)| nft_owner::ActiveModel {
                                 token_id: Set(ti.to_owned()),
                                 owner: Set(ow.to_owned()),
@@ -363,10 +376,7 @@ async fn build_saved_state_proc(
                         nft_owner::Entity::insert_many(owners)
                             .on_conflict(
                                 OnConflict::column(nft_owner::Column::TokenId)
-                                    .update_columns([
-                                        nft_owner::Column::Owner,
-                                        nft_owner::Column::EventTime,
-                                    ])
+                                    .update_columns([nft_owner::Column::Owner, nft_owner::Column::EventTime])
                                     .to_owned(),
                             )
                             .exec(txn)
@@ -379,7 +389,7 @@ async fn build_saved_state_proc(
                                 free: Set(bal.free.to_owned()),
                                 locked: Set(bal.locked.to_owned()),
                                 created_at: NotSet,
-                                updated_at: NotSet,
+                                updated_at: Set(now()),
                             }
                         });
                         balance_entity::Entity::insert_many(bals)
@@ -388,6 +398,7 @@ async fn build_saved_state_proc(
                                     .update_columns([
                                         balance_entity::Column::Free,
                                         balance_entity::Column::Locked,
+                                        balance_entity::Column::UpdatedAt,
                                     ])
                                     .to_owned(),
                             )
