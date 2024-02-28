@@ -1,37 +1,34 @@
 [package]
 name = "lmscan-agent"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-tokio = { version = "1.25.0", features = ["full"] }
-reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1.36.0", features = ["full"] }
+reqwest = { version = "0.11.24", features = ["json"] }
 serde = { version = "1.0.152", features = ["derive"] } 
 chrono = "0.4.23"
 serde_with = "2.2.0"
 serde_derive = "1.0"
-serde_json = {version="1.0", features = ["raw_value"]}
-sha3 = "0.10.6"
+serde_json = {version="1.0.114", features = ["raw_value"]}
 futures = "0.3.26"
 async-stream = { version = "0.3" }
 futures-util = { version = "0.3" }
 log = "0.4"
-async-trait = "0.1.65"
-dotenvy = "0.15.6"
-log4rs = "1.2.0"
-rust_decimal = "1.28"
-rust_decimal_macros = "1.28"
+async-trait = "0.1.77"
+dotenvy = "0.15.7"
+log4rs = "1.3.0"
+rust_decimal = "1.34"
+rust_decimal_macros = "1.34"
 bigdecimal = {version="0.3.1", features = ["serde"]}
-itertools = "0.10.5"
-async_once = "0.2.6"
+itertools = "0.12.1"
 lazy_static = "1.4.0"
-rayon = "1.7"
 sled = { version = "0.34.7", features = ["compression"] }
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 bincode = "1.3.3"
-dashmap = "5.5.1"
+dashmap = "5.5.3"
 
 [dependencies.sea-orm]
-version = "0.11.0"
-features = ["sqlx-postgres", "runtime-tokio-native-tls", "sea-orm-macros", "with-chrono", "with-json", "postgres-array"]
+version = "0.12.14"
+features = ["sqlx-postgres", "runtime-tokio-native-tls", "with-chrono", "with-json", "postgres-array"]

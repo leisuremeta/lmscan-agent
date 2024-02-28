@@ -16,7 +16,7 @@ pub async fn db_connn(database_url: String) -> DatabaseConnection {
         .connect_timeout(Duration::from_secs(30))
         .acquire_timeout(Duration::from_secs(30))
         .idle_timeout(Duration::from_secs(120))
-        .set_schema_search_path("public".into())
+        // .set_schema_search_path("public".into())
         .sqlx_logging(true)
         .sqlx_logging_level(LevelFilter::Debug);
 
@@ -67,7 +67,6 @@ pub fn into_byte_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
 }
 
 pub fn parse_from_json_str<'a, T: serde::Deserialize<'a>>(json: &'a str) -> T {
-    // serde_json::from_str::<T>(json).unwrap()
     match serde_json::from_str::<T>(json) {
         Ok(result) => result,
         Err(err) => {

@@ -145,7 +145,7 @@ pub struct Inner {
 #[serde(rename_all = "camelCase")]
 pub struct Value {
     pub minter: String,
-    pub rarity: HashMap<String, BigDecimal>,
+    pub rarity: HashMap<String, Option<BigDecimal>>,
     pub data_url: String,
     pub content_hash: String,
 }
