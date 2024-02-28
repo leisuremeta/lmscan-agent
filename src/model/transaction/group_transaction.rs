@@ -10,30 +10,24 @@ use super::{common::Common, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GroupTx {
-    #[serde(rename = "AddAccounts")]
     AddAccounts(AddAccounts),
-    #[serde(rename = "CreateGroup")]
     CreateGroup(CreateGroup),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AddAccounts {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "groupId")]
     pub group_id: String,
     pub accounts: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateGroup {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "groupId")]
     pub group_id: String,
     pub name: String,
     pub coordinator: String,

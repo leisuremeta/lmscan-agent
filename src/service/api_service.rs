@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 use crate::{
     block::Block,
     model::{
@@ -9,19 +9,26 @@ use crate::{
 };
 use futures_util::TryFutureExt;
 use lazy_static::lazy_static;
+use log::error;
 use std::fmt::Debug;
 use reqwest::Url;
 
+extern crate dotenvy;
+use dotenvy::var;
+
 lazy_static! {
     static ref CLIENT: reqwest::Client = reqwest::Client::new();
+    static ref BASE: String = var("BASE_URL").expect("URL must be set");
 }
-
-// const BASE_URI: &str = "http://lmc.leisuremeta.io";
-const BASE_URI: &str = "http://test.chain.leisuremeta.io";
 
 pub struct ApiService;
 
 impl ApiService {
+    fn make_url(param: &str) -> Url {
+        let mut url = Url::from_str(BASE.as_str()).unwrap();
+        url.set_path(param);
+        url
+    }
     pub async fn get_request_header_always<
         S: serde::de::DeserializeOwned + Debug,
     >(
@@ -33,15 +40,10 @@ impl ApiService {
             .send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
     }
 
-    pub async fn get_request_t(
-        url: Url,
-    ) -> Result<String, String> {
-        CLIENT.get(url).send().and_then(|res| res.text()).map_err(|e| e.to_string()).await
-    }
     pub async fn get_request<S: serde::de::DeserializeOwned + Debug>(
         url: Url,
     ) -> Result<S, String> {
-        CLIENT.get(url).send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
+        CLIENT.get(url.as_str()).send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
     }
 
     pub async fn get_request_until<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(
@@ -52,32 +54,30 @@ impl ApiService {
             match CLIENT.get(url.as_str()).send().await {
                 Ok(res) => match res.json::<S>().await {
                     Ok(payload) => return Some(payload),
-                    Err(err) => {
-                        println!("get_request_until parse err '{err}' - {:?}", url.as_str())
-                    }
+                    Err(err) => error!("get_request_until parse err '{err}' - {:?}", url.as_str())
                 },
-                Err(err) => println!("get_request_until err '{err}' - {:?}", url.as_str()),
+                Err(err) => error!("get_request_until err '{err}' - {:?}", url.as_str()),
             }
         }
         None
     }
 
     pub async fn get_node_status_always() -> Result<NodeStatus, String> {
-        Self::get_request(Url::parse(format!("{}/status", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url("/status")).await
     }
 
     pub async fn get_block_always(hash: &str) -> Result<Block, String> {
-        Self::get_request(Url::parse(format!("{}/block/{hash}", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url(&("/block/".to_owned() + hash))).await
     }
 
     pub async fn get_tx_always(hash: &str) -> Result<TransactionWithResult, String> {
-        Self::get_request(Url::parse(format!("{}/tx/{hash}", BASE_URI).as_str()).unwrap()).await
+        Self::get_request(Self::make_url(&("/tx/".to_owned() + hash))).await
     }
 
     pub async fn get_tx_with_json_always(hash: &str) -> (TransactionWithResult, String) {
         Self::get_request::<TransactionWithResult>(
-            Url::parse(format!("{}/tx/{hash}", BASE_URI).as_str()).unwrap())
-        .await
+            Self::make_url(&("/tx/".to_owned() + hash))
+        ).await
         .and_then(|result| 
             serde_json::to_string(&result)
             .map(|txt| (result, txt))
@@ -86,30 +86,12 @@ impl ApiService {
         .unwrap()
     }
 
-    pub async fn get_free_balance(
-        address: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_balance(address, "free").await
-    }
-
-    pub async fn get_locked_balance(
-        address: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_balance(address, "locked").await
-    }
-
     pub async fn get_balance(
         address: &str,
         movable: &str,
-    ) -> Result<Option<HashMap<String, BalanceInfo>>, String> {
-        Self::get_request_t(Url::parse(format!("{}/balance/{address}?movable={movable}", BASE_URI).as_str()).unwrap())
-        .await
-        .and_then(|txt| 
-            serde_json::from_str::<HashMap<String, BalanceInfo>>(&txt)
-            .map_or_else(|err| if txt.contains("not found") {
-                Ok(None)
-            } else {
-                Err(err.to_string())
-            }, |v| Ok(Some(v))))
+    ) -> Result<HashMap<String, BalanceInfo>, String> {
+        let mut url = Self::make_url(&("/balance/".to_owned() + address));
+        url.set_query(Some(&("movable=".to_owned() + movable)));
+        Self::get_request(url).await
     }
 }

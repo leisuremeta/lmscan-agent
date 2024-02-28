@@ -2,15 +2,14 @@ use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{library::common::from_rawvalue_to_bigdecimal, transaction::TransactionWithResult};
+use crate::transaction::TransactionWithResult;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BalanceInfo {
     #[serde(
         rename = "totalAmount",
-        deserialize_with = "from_rawvalue_to_bigdecimal"
     )]
-    pub total_amount: BigDecimal, // BigDecimal
+    pub total_amount: BigDecimal,
     pub unused: HashMap<String, TransactionWithResult>,
 }
 

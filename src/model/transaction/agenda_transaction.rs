@@ -12,38 +12,28 @@ use super::{common::Common, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AgendaTx {
-    #[serde(rename = "SuggestSimpleAgenda")]
     SuggestSimpleAgenda(SuggestSimpleAgenda),
-    #[serde(rename = "VoteSimpleAgenda")]
     VoteSimpleAgenda(VoteSimpleAgenda),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SuggestSimpleAgenda {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub title: String,
-    #[serde(rename = "votingToken")]
     pub voting_token: String,
-    #[serde(rename = "voteStart")]
     pub vote_start: String,
-    #[serde(rename = "voteEnd")]
     pub vote_end: String,
-    #[serde(rename = "voteOptions")]
     pub vote_options: HashMap<String, String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VoteSimpleAgenda {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "agendaTxHash")]
     pub agenda_tx_hash: String,
-    #[serde(rename = "selectedOption")]
     pub selected_option: String,
 }
 

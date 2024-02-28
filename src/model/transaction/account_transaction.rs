@@ -12,44 +12,36 @@ use super::{common::Common, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AccountTx {
-    #[serde(rename = "AddPublicKeySummaries")]
     AddPublicKeySummaries(AddPublicKeySummaries),
-    #[serde(rename = "CreateAccount")]
     CreateAccount(CreateAccount),
-    #[serde(rename = "UpdateAccount")]
     UpdateAccount(UpdateAccount),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AddPublicKeySummaries {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub account: String,
     pub summaries: HashMap<String, String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAccount {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub account: String,
-    #[serde(rename = "ethAddress")]
     pub eth_address: Option<String>,
     pub guardian: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateAccount {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub account: String,
-    #[serde(rename = "ethAddress")]
     pub eth_address: Option<String>,
     pub guardian: Option<String>,
 }

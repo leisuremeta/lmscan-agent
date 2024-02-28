@@ -5,7 +5,7 @@ use sea_orm::Set;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    library::common::{as_timestamp, as_vec, from_rawvalue_to_bigdecimal_map, now},
+    library::common::{as_timestamp, as_vec, now},
     tx_entity::ActiveModel,
 };
 
@@ -13,17 +13,11 @@ use super::{common::Common, TransactionResult, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RewardTx {
-    #[serde(rename = "RecordActivity")]
     RecordActivity(RecordActivity),
-    #[serde(rename = "RegisterDao")]
     RegisterDao(RegisterDao),
-    #[serde(rename = "UpdateDao")]
     UpdateDao(UpdateDao),
-    #[serde(rename = "OfferReward")]
     OfferReward(OfferReward),
-    #[serde(rename = "ExecuteReward")]
     ExecuteReward(ExecuteReward),
-    #[serde(rename = "ExecuteOwnershipReward")]
     ExecuteOwnershipReward(ExecuteOwnershipReward),
 }
 
@@ -34,77 +28,60 @@ pub struct DaoActivity {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecordActivity {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
     pub timestamp: String,
-    #[serde(rename = "userActivity")]
     pub user_activity: HashMap<String, Vec<DaoActivity>>,
-    #[serde(rename = "tokenReceived")]
     pub token_received: HashMap<String, Vec<DaoActivity>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterDao {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "groupId")]
     pub group_id: String,
-    #[serde(rename = "daoAccountName")]
     pub dao_account_name: String,
     pub moderators: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OfferReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
     pub outputs: HashMap<String, BigDecimal>,
     pub memo: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateDao {
-    #[serde(rename = "networkId")]
     network_id: i64,
-    #[serde(rename = "createdAt")]
     created_at: String,
-    #[serde(rename = "groupId")]
     group_id: String,
     moderators: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "daoAccount")]
     pub dao_account: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteOwnershipReward {
-    #[serde(rename = "networkId")]
     pub network_id: i64,
-    #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "tokenDefinitionId")]
     pub definition_id: String,
-    #[serde(rename = "inputs")]
     pub inputs: HashSet<String>,
-    #[serde(rename = "targets")]
     pub targets: Vec<String>,
 }
 
@@ -268,14 +245,14 @@ impl Common for ExecuteReward {
     ) -> ActiveModel {
         let (to_accounts, output_vals) = match tx.result {
             Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteRewardResult(res) => (
-                    res.outputs
+                TransactionResult::ExecuteRewardResult { outputs } => (
+                    outputs
                         .keys()
                         .into_iter()
                         .map(|to| to.to_string())
                         .collect(),
                     Some(
-                        res.outputs
+                        outputs
                             .into_iter()
                             .map(|(k, v)| k + "/" + &v.to_string())
                             .collect(),
@@ -323,14 +300,14 @@ impl Common for ExecuteOwnershipReward {
     ) -> ActiveModel {
         let (to_accounts, output_vals) = match tx.result {
             Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteOwnershipRewardResult(res) => (
-                    res.outputs
+                TransactionResult::ExecuteOwnershipRewardResult { outputs } => (
+                    outputs
                         .keys()
                         .into_iter()
                         .map(|to| to.to_string())
                         .collect(),
                     Some(
-                        res.outputs
+                        outputs
                             .into_iter()
                             .map(|(k, v)| k + "/" + &v.to_string())
                             .collect(),
@@ -345,7 +322,7 @@ impl Common for ExecuteOwnershipReward {
             hash: Set(hash),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
-            sub_type: Set("ExecuteReward".to_string()),
+            sub_type: Set("ExecuteOwnershipReward".to_string()),
             from_addr: Set(from_account),
             to_addr: Set(to_accounts),
             block_hash: Set(block_hash),

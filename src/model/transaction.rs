@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 extern crate chrono;
-use crate::library::common::{from_rawvalue_to_bigdecimal, from_rawvalue_to_bigdecimal_map};
 use crate::service::api_service::ApiService;
 use crate::service::finder_service::Finder;
 use crate::store::free_balance::FreeBalanceStore;
@@ -31,15 +30,6 @@ use self::token_transaction::*;
 
 use super::balance::Balance;
 
-impl TransactionWithResult {
-    pub fn from(json: &str) -> Option<TransactionWithResult> {
-        match serde_json::from_str::<TransactionWithResult>(json) {
-            Ok(tx_res) => Some(tx_res),
-            Err(err) => panic!("TransactionWithResult encode err: {err}"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransactionWithResult {
     #[serde(rename = "signedTx")]
@@ -49,60 +39,20 @@ pub struct TransactionWithResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionResult {
-    #[serde(rename = "AddPublicKeySummariesResult")]
-    AddPublicKeySummariesResult(AddPublicKeySummariesResult),
-    #[serde(rename = "BurnFungibleTokenResult")]
-    BurnFungibleTokenResult(BurnFungibleTokenResult),
-    #[serde(rename = "EntrustFungibleTokenResult")]
-    EntrustFungibleTokenResult(EntrustFungibleTokenResult),
-    #[serde(rename = "ExecuteRewardResult")]
-    ExecuteRewardResult(ExecuteRewardResult),
-    #[serde(rename = "ExecuteOwnershipRewardResult")]
-    ExecuteOwnershipRewardResult(ExecuteOwnershipRewardResult),
-    #[serde(rename = "VoteSimpleAgendaResult")]
-    VoteSimpleAgendaResult(VoteSimpleAgendaResult),
+    AddPublicKeySummariesResult { removed :HashMap<String, String> },
+    BurnFungibleTokenResult {
+        #[serde(rename = "outputAmount")]
+        output_amount: BigDecimal,
+    },
+    EntrustFungibleTokenResult { remainder: BigDecimal },
+    ExecuteRewardResult { outputs: HashMap<String, BigDecimal> },
+    ExecuteOwnershipRewardResult { outputs: HashMap<String, BigDecimal> },
+    VoteSimpleAgendaResult {
+        #[serde(rename = "votingAmount")]
+        voting_amount: BigDecimal,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AddPublicKeySummariesResult {
-    pub removed: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BurnFungibleTokenResult {
-    #[serde(
-        rename = "outputAmount",
-        deserialize_with = "from_rawvalue_to_bigdecimal"
-    )]
-    pub output_amount: BigDecimal,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EntrustFungibleTokenResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal")]
-    pub remainder: BigDecimal,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExecuteRewardResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
-    pub outputs: HashMap<String, BigDecimal>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ExecuteOwnershipRewardResult {
-    #[serde(deserialize_with = "from_rawvalue_to_bigdecimal_map")]
-    pub outputs: HashMap<String, BigDecimal>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct VoteSimpleAgendaResult {
-    #[serde(
-        rename = "votingAmount",
-        deserialize_with = "from_rawvalue_to_bigdecimal"
-    )]
-    pub voting_amount: BigDecimal,
-}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignedTx {
     pub sig: AccountSignature,
@@ -124,15 +74,10 @@ pub struct Signature {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Transaction {
-    #[serde(rename = "RewardTx")]
     RewardTx(RewardTx),
-    #[serde(rename = "TokenTx")]
     TokenTx(TokenTx),
-    #[serde(rename = "AccountTx")]
     AccountTx(AccountTx),
-    #[serde(rename = "GroupTx")]
     GroupTx(GroupTx),
-    #[serde(rename = "AgendaTx")]
     AgendaTx(AgendaTx),
 }
 
@@ -166,7 +111,6 @@ impl Common for Transaction {
         json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel {
-        let from_account = from_account.to_owned();
         match self {
             Transaction::RewardTx(t) => {
                 t.from(hash, from_account, block_hash, block_number, json, tx)
@@ -311,6 +255,11 @@ impl Job for TransactionWithResult {
                     tx.output.clone(),
                     tx.created_at.clone(),
                 )),
+                TokenTx::DisposeEntrustedNft(tx) => Some((
+                    tx.token_id.clone(),
+                    tx.output.clone().unwrap_or(String::new()),
+                    tx.created_at.clone(),
+                )),
                 _ => None,
             }
         } else {
@@ -350,12 +299,15 @@ impl Job for TransactionWithResult {
                 TokenTx::EntrustFungibleToken(t) => {
                     let from_account = &self.signed_tx.sig.account;
                     info.get_mut(from_account).map(|b| b.add_locked(&t.amount));
-                    let entry = info
+                    match info
                         .get_key_value(from_account)
-                        .map(|(k, v)| (k.clone(), v.locked()))
-                        .unwrap();
-                    LockedBalanceStore::insert0(state_info, entry);
-                    updated_accounts.insert(from_account.clone());
+                        .map(|(k, v)| (k.clone(), v.locked())) {
+                            Some(entry) => {
+                                LockedBalanceStore::insert0(state_info, entry);
+                                updated_accounts.insert(from_account.clone());
+                            },
+                            _ => (),
+                        }
                 }
                 TokenTx::DisposeEntrustedFungibleToken(t) => {
                     // Dispose locked balance
@@ -371,12 +323,15 @@ impl Job for TransactionWithResult {
                             let input_signer = input_tx.signed_tx.sig.account;
                             info.get_mut(&input_signer)
                                 .map(|b| b.sub_locked(&entrust.amount));
-                            let entry = info
+                            match info
                                 .get_key_value(&input_signer)
-                                .map(|(k, v)| (k.clone(), v.locked()))
-                                .unwrap();
-                            LockedBalanceStore::insert(state_info, entry, input_hash.clone());
-                            updated_accounts.insert(input_signer);
+                                .map(|(k, v)| (k.clone(), v.locked())) {
+                                    Some(entry) => {
+                                        LockedBalanceStore::insert(state_info, entry, input_hash.clone());
+                                        updated_accounts.insert(input_signer);
+                                    },
+                                    _ => (),
+                                }
                         }
                     }
                 }
@@ -414,12 +369,12 @@ impl Job for TransactionWithResult {
                 Transaction::RewardTx(rw) => match rw {
                     RewardTx::OfferReward(t) => t.outputs,
                     RewardTx::ExecuteReward(_) => match input_tx_with_res.result.unwrap() {
-                        TransactionResult::ExecuteRewardResult(res) => res.outputs,
+                        TransactionResult::ExecuteRewardResult {outputs} => outputs,
                         _ => panic!("invalid ExecuteRewardResult"),
                     },
                     RewardTx::ExecuteOwnershipReward(_) => {
                         match input_tx_with_res.result.unwrap() {
-                            TransactionResult::ExecuteOwnershipRewardResult(res) => res.outputs,
+                            TransactionResult::ExecuteOwnershipRewardResult{outputs} => outputs,
                             _ => panic!("invalid ExecuteOwnershipRewardResult"),
                         }
                     }
@@ -431,14 +386,14 @@ impl Job for TransactionWithResult {
                     TokenTx::DisposeEntrustedFungibleToken(t) => t.outputs,
                     TokenTx::BurnFungibleToken(_) => {
                         let output_amount = match input_tx_with_res.result.unwrap() {
-                            TransactionResult::BurnFungibleTokenResult(res) => res.output_amount,
+                            TransactionResult::BurnFungibleTokenResult { output_amount } => output_amount,
                             _ => panic!("invalid ExecuteOwnershipRewardResult"),
                         };
                         HashMap::from([(from_account.clone(), output_amount)])
                     }
                     TokenTx::EntrustFungibleToken(_) => {
                         let remainder = match input_tx_with_res.result.unwrap() {
-                            TransactionResult::EntrustFungibleTokenResult(res) => res.remainder,
+                            TransactionResult::EntrustFungibleTokenResult { remainder } => remainder,
                             _ => panic!("invalid EntrustFungibleTokenResult"),
                         };
                         HashMap::from([(from_account.clone(), remainder)])
@@ -459,14 +414,14 @@ impl Job for TransactionWithResult {
                     Some((Some(t.outputs), t.inputs))
                 }
                 RewardTx::ExecuteOwnershipReward(t) => match self.result.clone().unwrap() {
-                    TransactionResult::ExecuteOwnershipRewardResult(res) => {
-                        Some((Some(res.outputs), t.inputs))
+                    TransactionResult::ExecuteOwnershipRewardResult { outputs } => {
+                        Some((Some(outputs), t.inputs))
                     }
                     _ => None,
                 },
                 RewardTx::ExecuteReward(_) => match self.result.clone().unwrap() {
-                    TransactionResult::ExecuteRewardResult(res) => {
-                        Some((Some(res.outputs), HashSet::new()))
+                    TransactionResult::ExecuteRewardResult { outputs } => {
+                        Some((Some(outputs), HashSet::new()))
                     }
                     _ => None,
                 },
@@ -480,7 +435,7 @@ impl Job for TransactionWithResult {
                 }
                 TokenTx::EntrustFungibleToken(t) => {
                     let remainder = match (&self.result).as_ref().unwrap() {
-                        TransactionResult::EntrustFungibleTokenResult(res) => &res.remainder,
+                        TransactionResult::EntrustFungibleTokenResult { remainder } => remainder,
                         _ => panic!("invalid BurnFungibleTokenResult"),
                     };
                     info.get_mut(from_account).map(|b| b.add_free(remainder));
@@ -488,7 +443,7 @@ impl Job for TransactionWithResult {
                 }
                 TokenTx::BurnFungibleToken(t) => {
                     let output_amount = match (&self.result).as_ref().unwrap() {
-                        TransactionResult::BurnFungibleTokenResult(res) => &res.output_amount,
+                        TransactionResult::BurnFungibleTokenResult { output_amount } => output_amount,
                         _ => panic!("invalid BurnFungibleTokenResult"),
                     };
                     info.get_mut(from_account)
@@ -589,21 +544,10 @@ pub trait ExtractEntity {
         tx_entity: &tx_entity::ActiveModel,
         store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>,
     );
-    fn is_locked_fungible_tx(&self) -> bool;
 }
 
 #[async_trait]
 impl ExtractEntity for Transaction {
-    fn is_locked_fungible_tx(&self) -> bool {
-        if let Transaction::TokenTx(
-            TokenTx::EntrustFungibleToken(_) | TokenTx::DisposeEntrustedFungibleToken(_),
-        ) = self
-        {
-            return true;
-        }
-        false
-    }
-
     async fn extract_additional_entity(
         &self,
         tx_entity: &tx_entity::ActiveModel,
@@ -631,8 +575,8 @@ impl ExtractEntity for Transaction {
             Transaction::TokenTx(tx) => match tx {
                 TokenTx::MintNft(tx) => {
                     let nft_meta_info_opt =
-                        ApiService::get_request_until(tx.data_url.clone(), 5).await;
-                    let nft_file = nft_file::Model::from(tx, nft_meta_info_opt);
+                        ApiService::get_request_until(tx.data_url.clone(), 1).await;
+                    let nft_file = nft_file::Model::from(tx, nft_meta_info_opt, tx.data_url.clone());
                     match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
                         Some(v) => match v {
                             AdditionalEntity::CreateNftFile(vec) => vec.push(nft_file.clone()),
