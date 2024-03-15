@@ -1,7 +1,7 @@
 use lmscan_agent::service::finder_service::Finder;
 
 use lmscan_agent::library::common::*;
-use lmscan_agent::{summary_app, check_app};
+use lmscan_agent::{check_app, summary_app};
 
 extern crate dotenvy;
 use dotenvy::{dotenv, var};

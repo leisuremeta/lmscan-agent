@@ -135,18 +135,15 @@ async fn save_diff_state_proc(
         let block_state = block_state::Model::from(curr_block_hash.as_str(), &block);
         block_states.push(block_state);
 
-        if block.header.number != 1468 {
-            // can't get tx - decode error
-            for tx_hash in &block.transaction_hashes {
-                let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
-                let tx_state = tx_state::Model::from(
-                    tx_hash.as_str(),
-                    curr_block_hash.as_str(),
-                    &tx_result,
-                    json,
-                );
-                txs.push(tx_state);
-            }
+        for tx_hash in &block.transaction_hashes {
+            let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
+            let tx_state = tx_state::Model::from(
+                tx_hash.as_str(),
+                curr_block_hash.as_str(),
+                &tx_result,
+                json,
+            );
+            txs.push(tx_state);
         }
 
         curr_block_hash = block.header.parent_hash.clone();
@@ -198,24 +195,18 @@ async fn build_saved_state_proc(
             .iter()
             .map(|b| b.hash.clone())
             .collect::<Vec<String>>();
-        let mut txs_in_block: HashMap<String, Vec<(tx_state::Model, TransactionWithResult)>> =
-            get_tx_states_in_block_hashs(block_hashs.clone(), db)
-                .await
-                .into_iter()
-                .map(|(block_hash, tx_states)| {
-                    (
-                        block_hash,
-                        tx_states
-                            .into_iter()
-                            .map(|state| {
-                                let json = state.json.clone();
-                                (state, parse_from_json_str::<TransactionWithResult>(&json))
-                            })
-                            .sorted_by_key(|(_, tx_res)| tx_res.signed_tx.value.created_at())
-                            .collect(),
-                    )
-                })
-                .collect();
+        let mut txs_in_block: HashMap<String, Vec<(tx_state::Model, TransactionWithResult)>> = HashMap::new();
+        for (block_hash, tx_states) in get_tx_states_in_block_hashs(block_hashs.clone(), db).await {
+            let mut vec: Vec<(tx_state::Model, TransactionWithResult)> = vec![]; 
+            for state in tx_states {
+                match parse_from_json_str::<TransactionWithResult>(&state.json) {
+                    Ok(txr) => vec.push((state, txr)),
+                    Err(e) => error!("{}: {e}", state.json)
+                }
+            }
+            vec.sort_by_key(|(_, res)| res.signed_tx.value.created_at());
+            txs_in_block.insert(block_hash, vec);
+        }
 
         let curr_free_tx_signers: HashSet<String> = txs_in_block
             .clone()
@@ -230,11 +221,13 @@ async fn build_saved_state_proc(
         FreeBalanceStore::temporary_snapshot_of(&curr_free_tx_signers);
         LockedBalanceStore::temporary_snapshot_of();
 
-        let block_entities = block_states
-            .into_iter()
-            .map(|state| (parse_from_json_str::<Block>(state.json.as_str()), state))
-            .map(|(block, state)| BlockModel::from(&block, state.hash.clone()))
-            .collect::<Vec<block_entity::ActiveModel>>();
+        let mut block_entities: Vec<block_entity::ActiveModel> = vec![];
+        for state in block_states {
+            match parse_from_json_str::<Block>(state.json.as_str()) {
+                Ok(block) => block_entities.push(BlockModel::from(&block, state.hash.clone())),
+                Err(e) => error!("{}: {e}", state.json)
+            }
+        }
 
         let mut free_state = FreeBalanceStore::log_of_snapshot_stage(snapshot_stage);
         let mut locked_state = LockedBalanceStore::log_of_snapshot_stage(snapshot_stage);
@@ -303,6 +296,7 @@ async fn build_saved_state_proc(
                                     .do_nothing()
                                     .to_owned(),
                             )
+                            .do_nothing()
                             .exec(txn)
                             .await?;
                     }
@@ -313,6 +307,7 @@ async fn build_saved_state_proc(
                                     .do_nothing()
                                     .to_owned(),
                             )
+                            .do_nothing()
                             .exec(txn)
                             .await?;
                     }
@@ -325,6 +320,7 @@ async fn build_saved_state_proc(
                                             .do_nothing()
                                             .to_owned(),
                                     )
+                                    .do_nothing()
                                     .exec(txn)
                                     .await?;
                             }
@@ -335,6 +331,7 @@ async fn build_saved_state_proc(
                                             .do_nothing()
                                             .to_owned(),
                                     )
+                                    .do_nothing()
                                     .exec_without_returning(txn)
                                     .await?;
                             }
@@ -346,6 +343,7 @@ async fn build_saved_state_proc(
                                             .do_nothing()
                                             .to_owned(),
                                     )
+                                    .do_nothing()
                                     .exec(txn)
                                     .await?;
                             }
@@ -379,6 +377,7 @@ async fn build_saved_state_proc(
                                     .update_columns([nft_owner::Column::Owner, nft_owner::Column::EventTime])
                                     .to_owned(),
                             )
+                            .do_nothing()
                             .exec(txn)
                             .await?;
                     }
@@ -402,6 +401,7 @@ async fn build_saved_state_proc(
                                     ])
                                     .to_owned(),
                             )
+                            .do_nothing()
                             .exec(txn)
                             .await?;
                     }
@@ -445,11 +445,15 @@ pub async fn check_loop(db: DatabaseConnection) {
         let mut nft_owner_info = get_nft_owner_infos(&db).await;
         balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
         loop {
-            let ref node_status = ApiService::get_node_status_always().await.ok().unwrap();
-            let target_hash = get_last_built_or_genesis_block_hash(node_status, &db).await;
-            save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
+            match ApiService::get_node_status_always().await.ok() {
+               Some(node_status) => {
+                    let target_hash = get_last_built_or_genesis_block_hash(&node_status, &db).await;
+                    save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
 
-            balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
+                    balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
+               }
+               _ =>  error!("can't load status")
+            }
             sleep(Duration::from_secs(3)).await;
         }
     })

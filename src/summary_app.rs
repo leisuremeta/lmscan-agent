@@ -1,10 +1,8 @@
 use crate::{entity::*, model::lm_price::LmPrice, service::api_service::ApiService};
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, Zero};
 use log::error;
 use reqwest::Url;
 use rust_decimal::prelude::FromPrimitive;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use sea_orm::DatabaseConnection;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
@@ -24,28 +22,31 @@ pub async fn summary_loop(db: DatabaseConnection, api_key: String) {
                 get_total_accounts(&db).await,
                 get_tx_size(&db).await,
                 get_total_balance().await,
+                get_total_nft(&db).await,
             ) {
                 (
                     Some(last_built_block),
-                    Some(lm_price),
+                    Some((price, cap, supply)),
                     Some(total_accounts),
                     Some(total_tx_size),
                     total_balance,
+                    Some(total_nft),
                 ) => {
                     let summary = summary::Model::from(
                         last_built_block.number,
-                        lm_price,
+                        price,
+                        cap,
+                        supply,
                         total_accounts as i64,
                         total_tx_size as i64,
                         total_balance.unwrap(),
+                        total_nft,
                     );
                     if let Err(err) = summary::Entity::insert(summary).exec(&db).await {
                         error!("summary loop failed {}", err);
                     }
                 }
-                _ => {
-                    error!("summary loop is skiped.")
-                }
+                _ => error!("summary loop is skiped.")
             }
             sleep(Duration::from_secs(60 * 10)).await;
         }
@@ -86,7 +87,7 @@ async fn get_total_balance() -> Option<BigDecimal> {
         )
 }
 
-async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decimal> {
+async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<(BigDecimal, BigDecimal, BigDecimal)> {
     let lm_token_id = 20315;
     match ApiService::get_request_header_always::<LmPrice>(
     Url::parse(format!(
@@ -96,25 +97,31 @@ async fn get_lm_price(db: &DatabaseConnection, api_key: String) -> Option<Decima
     ).await
     .map(|lm| 
         lm.data.get(&lm_token_id)
-        .and_then(|d| Decimal::from_f32(d.quote.usd.price))
-        .or(Some(dec!(0.0))))
-    .ok() {
+        .and_then(|d| 
+            Some((d.quote.usd.price.clone(), d.quote.usd.market_cap.clone(), d.circulating_supply.clone()))
+        )
+    ).ok() {
         Some(x) => x,
         _ => get_last_saved_lm_price(db).await
     }
 }
 
-async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<Decimal> {
+async fn get_last_saved_lm_price(db: &DatabaseConnection) -> Option<(BigDecimal, BigDecimal, BigDecimal)> {
     summary::Entity::find()
         .order_by_desc(summary::Column::BlockNumber)
         .one(db)
         .await
-        .map(|opt| opt.map(|summary| summary.lm_price))
-        .unwrap_or(Some(dec!(0.0)))
+        .map(|opt| 
+            opt.map(|summary| (summary.lm_price, summary.market_cap, summary.cir_supply))
+        ).unwrap_or(Some((BigDecimal::zero(), BigDecimal::zero(), BigDecimal::zero())))
 }
 
 async fn get_tx_size(db: &DatabaseConnection) -> Option<u64> {
     tx_entity::Entity::find().count(db).await.ok()
+}
+
+async fn get_total_nft(db: &DatabaseConnection) -> Option<u64> {
+    nft_file::Entity::find().count(db).await.ok()
 }
 
 async fn get_last_built_block(db: &DatabaseConnection) -> Option<block_state::Model> {

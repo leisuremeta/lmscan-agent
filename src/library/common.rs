@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use log::{error, LevelFilter};
+use log::LevelFilter;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use sled::IVec;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -66,14 +66,15 @@ pub fn into_byte_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
     bincode::serialize(value).unwrap()
 }
 
-pub fn parse_from_json_str<'a, T: serde::Deserialize<'a>>(json: &'a str) -> T {
-    match serde_json::from_str::<T>(json) {
-        Ok(result) => result,
-        Err(err) => {
-            error!("{json}: {err}");
-            panic!("{err}");
-        }
-    }
+pub fn parse_from_json_str<'a, T: serde::Deserialize<'a>>(json: &'a str) -> Result<T, serde_json::Error> {
+    serde_json::from_str::<T>(json)
+    // match serde_json::from_str::<T>(json) {
+    //     Ok(result) => Ok(result),
+    //     Err(err) => {
+    //         error!("{json}: {err}");
+    //         Err(err)
+    //     }
+    // }
 }
 
 pub fn as_path_buf(sled_path: &str) -> PathBuf {
