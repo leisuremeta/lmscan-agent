@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +22,7 @@ pub struct Data {
     pub symbol: String,
     pub last_updated: String,
     pub quote: Currency,
+    pub circulating_supply: BigDecimal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +33,7 @@ pub struct Currency {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct USDCurrency {
-    pub price: f32,
+    pub price: BigDecimal,
     pub last_updated: String,
+    pub market_cap: BigDecimal,
 }
