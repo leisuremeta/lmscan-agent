@@ -1,4 +1,5 @@
 pub mod account_entity;
+pub mod account_mapper;
 pub mod balance_entity;
 pub mod block_entity;
 pub mod block_state;

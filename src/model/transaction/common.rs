@@ -4,7 +4,6 @@ use super::TransactionWithResult;
 
 pub trait Common {
     fn created_at(&self) -> i64;
-    fn network_id(&self) -> i64;
     fn from(
         &self,
         hash: String,

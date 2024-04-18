@@ -20,7 +20,6 @@ pub enum AccountTx {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddPublicKeySummaries {
-    pub network_id: i64,
     pub created_at: String,
     pub account: String,
     pub summaries: HashMap<String, String>,
@@ -29,7 +28,6 @@ pub struct AddPublicKeySummaries {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAccount {
-    pub network_id: i64,
     pub created_at: String,
     pub account: String,
     pub eth_address: Option<String>,
@@ -39,7 +37,6 @@ pub struct CreateAccount {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAccount {
-    pub network_id: i64,
     pub created_at: String,
     pub account: String,
     pub eth_address: Option<String>,
@@ -49,9 +46,6 @@ pub struct UpdateAccount {
 impl Common for AddPublicKeySummaries {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
 
     fn from(
@@ -85,9 +79,6 @@ impl Common for CreateAccount {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -118,9 +109,6 @@ impl Common for CreateAccount {
 impl Common for UpdateAccount {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -155,14 +143,6 @@ impl Common for AccountTx {
             AccountTx::AddPublicKeySummaries(t) => t.created_at(),
             AccountTx::CreateAccount(t) => t.created_at(),
             AccountTx::UpdateAccount(t) => t.created_at(),
-        }
-    }
-
-    fn network_id(&self) -> i64 {
-        match self {
-            AccountTx::AddPublicKeySummaries(t) => t.network_id,
-            AccountTx::CreateAccount(t) => t.network_id,
-            AccountTx::UpdateAccount(t) => t.network_id,
         }
     }
 

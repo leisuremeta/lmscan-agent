@@ -92,16 +92,6 @@ impl Common for Transaction {
         }
     }
 
-    fn network_id(&self) -> i64 {
-        match self {
-            Transaction::RewardTx(t) => t.network_id(),
-            Transaction::TokenTx(t) => t.network_id(),
-            Transaction::AccountTx(t) => t.network_id(),
-            Transaction::GroupTx(t) => t.network_id(),
-            Transaction::AgendaTx(t) => t.network_id(),
-        }
-    }
-
     fn from(
         &self,
         hash: String,

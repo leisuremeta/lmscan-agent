@@ -30,7 +30,6 @@ pub struct DaoActivity {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordActivity {
-    pub network_id: i64,
     pub created_at: String,
     pub timestamp: String,
     pub user_activity: HashMap<String, Vec<DaoActivity>>,
@@ -40,7 +39,6 @@ pub struct RecordActivity {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterDao {
-    pub network_id: i64,
     pub created_at: String,
     pub group_id: String,
     pub dao_account_name: String,
@@ -50,7 +48,6 @@ pub struct RegisterDao {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OfferReward {
-    pub network_id: i64,
     pub created_at: String,
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
@@ -61,7 +58,6 @@ pub struct OfferReward {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateDao {
-    network_id: i64,
     created_at: String,
     group_id: String,
     moderators: Vec<String>,
@@ -70,7 +66,6 @@ pub struct UpdateDao {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteReward {
-    pub network_id: i64,
     pub created_at: String,
     pub dao_account: Option<String>,
 }
@@ -78,7 +73,6 @@ pub struct ExecuteReward {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteOwnershipReward {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub inputs: HashSet<String>,
@@ -88,9 +82,6 @@ pub struct ExecuteOwnershipReward {
 impl Common for RecordActivity {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -123,9 +114,6 @@ impl Common for RegisterDao {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -157,9 +145,6 @@ impl Common for UpdateDao {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -190,9 +175,6 @@ impl Common for UpdateDao {
 impl Common for OfferReward {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -230,9 +212,6 @@ impl Common for OfferReward {
 impl Common for ExecuteReward {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -284,9 +263,6 @@ impl Common for ExecuteReward {
 impl Common for ExecuteOwnershipReward {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
 
     fn from(
@@ -345,16 +321,6 @@ impl Common for RewardTx {
             RewardTx::OfferReward(t) => t.created_at(),
             RewardTx::ExecuteReward(t) => t.created_at(),
             RewardTx::ExecuteOwnershipReward(t) => t.created_at(),
-        }
-    }
-    fn network_id(&self) -> i64 {
-        match self {
-            RewardTx::RecordActivity(t) => t.network_id,
-            RewardTx::RegisterDao(t) => t.network_id,
-            RewardTx::UpdateDao(t) => t.network_id,
-            RewardTx::OfferReward(t) => t.network_id,
-            RewardTx::ExecuteReward(t) => t.network_id,
-            RewardTx::ExecuteOwnershipReward(t) => t.network_id,
         }
     }
     fn from(

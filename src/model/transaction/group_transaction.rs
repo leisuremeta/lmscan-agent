@@ -17,7 +17,6 @@ pub enum GroupTx {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddAccounts {
-    pub network_id: i64,
     pub created_at: String,
     pub group_id: String,
     pub accounts: Vec<String>,
@@ -26,7 +25,6 @@ pub struct AddAccounts {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateGroup {
-    pub network_id: i64,
     pub created_at: String,
     pub group_id: String,
     pub name: String,
@@ -36,9 +34,6 @@ pub struct CreateGroup {
 impl Common for AddAccounts {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
 
     fn from(
@@ -72,9 +67,6 @@ impl Common for CreateGroup {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -107,13 +99,6 @@ impl Common for GroupTx {
         match self {
             GroupTx::AddAccounts(t) => t.created_at(),
             GroupTx::CreateGroup(t) => t.created_at(),
-        }
-    }
-
-    fn network_id(&self) -> i64 {
-        match self {
-            GroupTx::AddAccounts(t) => t.network_id(),
-            GroupTx::CreateGroup(t) => t.network_id(),
         }
     }
 

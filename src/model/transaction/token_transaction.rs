@@ -37,7 +37,6 @@ pub enum TokenTx {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BurnNft {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub input: String,
@@ -46,7 +45,6 @@ pub struct BurnNft {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntrustNft {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub token_id: String,
@@ -57,7 +55,6 @@ pub struct EntrustNft {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntrustFungibleToken {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub amount: BigDecimal,
@@ -68,7 +65,6 @@ pub struct EntrustFungibleToken {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BurnFungibleToken {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub amount: BigDecimal,
@@ -78,7 +74,6 @@ pub struct BurnFungibleToken {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferNft {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub token_id: String,
@@ -90,7 +85,6 @@ pub struct TransferNft {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferFungibleToken {
-    pub network_id: i64,
     pub created_at: String,
     pub token_definition_id: String,
     pub inputs: HashSet<String>,
@@ -101,7 +95,6 @@ pub struct TransferFungibleToken {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct MintNft {
-    pub network_id: i64,
     pub created_at: String,
     pub token_definition_id: String,
     pub token_id: String,
@@ -114,7 +107,6 @@ pub struct MintNft {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MintFungibleToken {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub outputs: HashMap<String, BigDecimal>,
@@ -123,7 +115,6 @@ pub struct MintFungibleToken {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DefineToken {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub name: String,
@@ -153,7 +144,6 @@ pub struct Value {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DisposeEntrustedNft {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub token_id: String,
@@ -164,7 +154,6 @@ pub struct DisposeEntrustedNft {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DisposeEntrustedFungibleToken {
-    pub network_id: i64,
     pub created_at: String,
     pub definition_id: String,
     pub inputs: HashSet<String>,
@@ -174,9 +163,6 @@ pub struct DisposeEntrustedFungibleToken {
 impl Common for EntrustNft {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -208,9 +194,6 @@ impl Common for EntrustNft {
 impl Common for EntrustFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -245,9 +228,6 @@ impl Common for BurnFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -279,9 +259,6 @@ impl Common for TransferNft {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -312,9 +289,6 @@ impl Common for TransferNft {
 impl Common for TransferFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -364,9 +338,6 @@ impl Common for MintNft {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -399,9 +370,6 @@ impl Common for MintFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -433,9 +401,6 @@ impl Common for DefineToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -466,9 +431,6 @@ impl Common for DefineToken {
 impl Common for DisposeEntrustedNft {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -506,9 +468,6 @@ impl Common for DisposeEntrustedFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
@@ -544,9 +503,6 @@ impl Common for DisposeEntrustedFungibleToken {
 impl Common for BurnNft {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -589,21 +545,6 @@ impl Common for TokenTx {
             TokenTx::DisposeEntrustedFungibleToken(t) => t.created_at(),
             TokenTx::BurnNft(t) => t.created_at(),
             TokenTx::BurnFungibleToken(t) => t.created_at(),
-        }
-    }
-    fn network_id(&self) -> i64 {
-        match self {
-            TokenTx::EntrustNft(t) => t.network_id,
-            TokenTx::EntrustFungibleToken(t) => t.network_id,
-            TokenTx::TransferNft(t) => t.network_id,
-            TokenTx::TransferFungibleToken(t) => t.network_id,
-            TokenTx::MintNft(t) => t.network_id,
-            TokenTx::MintFungibleToken(t) => t.network_id,
-            TokenTx::DefineToken(t) => t.network_id,
-            TokenTx::DisposeEntrustedNft(t) => t.network_id,
-            TokenTx::DisposeEntrustedFungibleToken(t) => t.network_id,
-            TokenTx::BurnNft(t) => t.network_id,
-            TokenTx::BurnFungibleToken(t) => t.network_id,
         }
     }
 

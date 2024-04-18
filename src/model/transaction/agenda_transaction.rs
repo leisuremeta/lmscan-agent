@@ -19,7 +19,6 @@ pub enum AgendaTx {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SuggestSimpleAgenda {
-    pub network_id: i64,
     pub created_at: String,
     pub title: String,
     pub voting_token: String,
@@ -31,7 +30,6 @@ pub struct SuggestSimpleAgenda {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteSimpleAgenda {
-    pub network_id: i64,
     pub created_at: String,
     pub agenda_tx_hash: String,
     pub selected_option: String,
@@ -42,13 +40,6 @@ impl Common for AgendaTx {
         match self {
             AgendaTx::SuggestSimpleAgenda(t) => t.created_at(),
             AgendaTx::VoteSimpleAgenda(t) => t.created_at(),
-        }
-    }
-
-    fn network_id(&self) -> i64 {
-        match self {
-            AgendaTx::SuggestSimpleAgenda(t) => t.network_id(),
-            AgendaTx::VoteSimpleAgenda(t) => t.network_id(),
         }
     }
 
@@ -75,9 +66,6 @@ impl Common for AgendaTx {
 impl Common for SuggestSimpleAgenda {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
@@ -109,9 +97,6 @@ impl Common for SuggestSimpleAgenda {
 impl Common for VoteSimpleAgenda {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
-    }
-    fn network_id(&self) -> i64 {
-        self.network_id
     }
     fn from(
         &self,
