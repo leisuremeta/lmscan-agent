@@ -5,11 +5,11 @@ use sea_orm::Set;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    library::common::{as_timestamp, as_vec, now},
+    library::common::{as_timestamp, now},
     tx_entity::ActiveModel,
 };
 
-use super::{common::Common, TransactionResult, TransactionWithResult};
+use super::{common::Common, TransactionWithResult};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RewardTx {
@@ -86,10 +86,8 @@ impl Common for RecordActivity {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -97,15 +95,10 @@ impl Common for RecordActivity {
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("RecordActivity".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -117,10 +110,8 @@ impl Common for RegisterDao {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -128,15 +119,10 @@ impl Common for RegisterDao {
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("RegisterDao".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -148,10 +134,8 @@ impl Common for UpdateDao {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -159,15 +143,10 @@ impl Common for UpdateDao {
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("UpdateDao".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -179,32 +158,19 @@ impl Common for OfferReward {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
-        let to_accounts: Vec<String> = self.outputs.keys().map(|s| s.to_string()).collect();
-        let output_vals = self
-            .outputs
-            .iter()
-            .map(|(k, v)| k.to_owned() + "/" + &v.to_string())
-            .collect();
         ActiveModel {
             hash: Set(hash),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("OfferReward".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(to_accounts),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(Some(as_vec(self.inputs.clone()))),
-            output_vals: Set(Some(output_vals)),
-            json: Set(json),
         }
     }
 }
@@ -216,46 +182,19 @@ impl Common for ExecuteReward {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        tx: TransactionWithResult,
+        _: TransactionWithResult,
     ) -> ActiveModel {
-        let (to_accounts, output_vals) = match tx.result {
-            Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteRewardResult { outputs } => (
-                    outputs
-                        .keys()
-                        .into_iter()
-                        .map(|to| to.to_string())
-                        .collect(),
-                    Some(
-                        outputs
-                            .into_iter()
-                            .map(|(k, v)| k + "/" + &v.to_string())
-                            .collect(),
-                    ),
-                ),
-                _ => (vec![], None),
-            },
-            None => (vec![], None),
-        };
-
         ActiveModel {
             hash: Set(hash),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("ExecuteReward".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(to_accounts),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(output_vals),
-            json: Set(json),
         }
     }
 }
@@ -268,46 +207,19 @@ impl Common for ExecuteOwnershipReward {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        tx: TransactionWithResult,
+        _: TransactionWithResult,
     ) -> ActiveModel {
-        let (to_accounts, output_vals) = match tx.result {
-            Option::Some(tx_res) => match tx_res {
-                TransactionResult::ExecuteOwnershipRewardResult { outputs } => (
-                    outputs
-                        .keys()
-                        .into_iter()
-                        .map(|to| to.to_string())
-                        .collect(),
-                    Some(
-                        outputs
-                            .into_iter()
-                            .map(|(k, v)| k + "/" + &v.to_string())
-                            .collect(),
-                    ),
-                ),
-                _ => (vec![], None),
-            },
-            None => (vec![], None),
-        };
-
         ActiveModel {
             hash: Set(hash),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("ExecuteOwnershipReward".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(to_accounts),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(Some(self.inputs.clone().into_iter().collect())),
-            output_vals: Set(output_vals),
-            json: Set(json),
         }
     }
 }
@@ -326,30 +238,28 @@ impl Common for RewardTx {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel {
         match self {
             RewardTx::RecordActivity(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             RewardTx::RegisterDao(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             RewardTx::UpdateDao(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             RewardTx::OfferReward(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             RewardTx::ExecuteReward(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             RewardTx::ExecuteOwnershipReward(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash,block_number, tx)
             }
         }
     }

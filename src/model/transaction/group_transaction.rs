@@ -39,10 +39,8 @@ impl Common for AddAccounts {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -50,15 +48,10 @@ impl Common for AddAccounts {
             tx_type: Set("Group".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("AddAccounts".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -70,10 +63,8 @@ impl Common for CreateGroup {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -81,15 +72,10 @@ impl Common for CreateGroup {
             token_type: Set("LM".to_string()),
             tx_type: Set("Group".to_string()),
             sub_type: Set("CreateGroup".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -105,18 +91,16 @@ impl Common for GroupTx {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel {
         match self {
             GroupTx::AddAccounts(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             GroupTx::CreateGroup(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
         }
     }

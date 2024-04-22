@@ -12,14 +12,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 extern crate chrono;
-use crate::service::api_service::ApiService;
 use crate::service::finder_service::Finder;
 use crate::store::free_balance::FreeBalanceStore;
 use crate::store::locked_balance::LockedBalanceStore;
 use crate::store::sled_store::SledStore;
 use crate::store::wal::State;
 use crate::tx_entity::{self, ActiveModel};
-use crate::{account_entity, nft_file, nft_tx};
+use crate::{account_entity, nft_tx};
 
 use self::account_transaction::*;
 use self::agenda_transaction::*;
@@ -95,27 +94,25 @@ impl Common for Transaction {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel {
         match self {
             Transaction::RewardTx(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             Transaction::TokenTx(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             Transaction::AccountTx(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             Transaction::GroupTx(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
             Transaction::AgendaTx(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
+                t.from(hash, block_hash, block_number, tx)
             }
         }
     }
@@ -139,47 +136,6 @@ pub struct NftMetaInfo {
     pub nft_name: String,
     #[serde(rename = "NFT_URI")]
     pub nft_uri: String,
-}
-
-pub trait NftTx {
-    fn token_id(&self) -> String;
-    fn sub_type(&self) -> String;
-}
-
-impl NftTx for MintNft {
-    fn token_id(&self) -> String {
-        self.token_id.clone()
-    }
-    fn sub_type(&self) -> String {
-        String::from("MintNft")
-    }
-}
-
-impl NftTx for TransferNft {
-    fn token_id(&self) -> String {
-        self.token_id.clone()
-    }
-    fn sub_type(&self) -> String {
-        String::from("TransferNft")
-    }
-}
-
-impl NftTx for EntrustNft {
-    fn token_id(&self) -> String {
-        self.token_id.clone()
-    }
-    fn sub_type(&self) -> String {
-        String::from("EntrustNft")
-    }
-}
-
-impl NftTx for DisposeEntrustedNft {
-    fn token_id(&self) -> String {
-        self.token_id.clone()
-    }
-    fn sub_type(&self) -> String {
-        String::from("DisposeEntrustedNft")
-    }
 }
 
 #[async_trait]
@@ -511,145 +467,17 @@ impl Job for TransactionWithResult {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum AdditionalEntity {
-    CreateAccount(Vec<account_entity::ActiveModel>),
-    CreateNftFile(Vec<nft_file::ActiveModel>),
-    NftTx(Vec<nft_tx::ActiveModel>),
-}
-
-#[derive(Hash, Eq, PartialEq)]
-pub enum AdditionalEntityKey {
-    CreateNftFile,
-    NftTx,
-    CreateAccount,
-}
-
-pub trait Extract: Send + Debug {}
-
-#[async_trait]
-pub trait ExtractEntity {
-    async fn extract_additional_entity(
-        &self,
-        tx_entity: &tx_entity::ActiveModel,
-        store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>,
-    );
-}
-
-#[async_trait]
-impl ExtractEntity for Transaction {
-    async fn extract_additional_entity(
-        &self,
-        tx_entity: &tx_entity::ActiveModel,
-        store: &mut HashMap<AdditionalEntityKey, AdditionalEntity>,
-    ) {
+impl Transaction {
+    pub fn get_nft_active_model(&self, tx_entity: &tx_entity::ActiveModel, from: String) -> Option<nft_tx::ActiveModel> {
         match self {
-            Transaction::AccountTx(tx) => match tx {
-                AccountTx::CreateAccount(tx) => {
-                    let account = account_entity::Model::from(tx);
-                    match store.get_mut(&AdditionalEntityKey::CreateAccount) {
-                        Some(v) => match v {
-                            AdditionalEntity::CreateAccount(vec) => vec.push(account.clone()),
-                            _ => {}
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::CreateAccount,
-                                AdditionalEntity::CreateAccount(vec![account]),
-                            );
-                        }
-                    }
-                }
-                _ => {}
-            },
-            Transaction::TokenTx(tx) => match tx {
-                TokenTx::MintNft(tx) => {
-                    let nft_meta_info_opt =
-                        ApiService::get_request_until(tx.data_url.clone(), 1).await;
-                    let nft_file = nft_file::Model::from(tx, nft_meta_info_opt, tx.data_url.clone());
-                    match store.get_mut(&AdditionalEntityKey::CreateNftFile) {
-                        Some(v) => match v {
-                            AdditionalEntity::CreateNftFile(vec) => vec.push(nft_file.clone()),
-                            _ => (),
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::CreateNftFile,
-                                AdditionalEntity::CreateNftFile(vec![nft_file]),
-                            );
-                        }
-                    };
-
-                    let nft_tx = nft_tx::Model::from(tx, tx_entity);
-                    match store.get_mut(&AdditionalEntityKey::NftTx) {
-                        Some(v) => match v {
-                            AdditionalEntity::NftTx(vec) => vec.push(nft_tx.clone()),
-                            _ => (),
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::NftTx,
-                                AdditionalEntity::NftTx(vec![nft_tx]),
-                            );
-                        }
-                    };
-                }
-                TokenTx::TransferNft(tx) => {
-                    let nft_tx = nft_tx::Model::from(tx, tx_entity);
-                    match store.get_mut(&AdditionalEntityKey::NftTx) {
-                        Some(v) => match v {
-                            AdditionalEntity::NftTx(vec) => vec.push(nft_tx.clone()),
-                            _ => (),
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::NftTx,
-                                AdditionalEntity::NftTx(vec![nft_tx.clone()]),
-                            );
-                        }
-                    };
-                }
-                TokenTx::EntrustNft(tx) => {
-                    let nft_tx = nft_tx::Model::from(tx, tx_entity);
-                    match store.get_mut(&AdditionalEntityKey::NftTx) {
-                        Some(v) => match v {
-                            AdditionalEntity::NftTx(vec) => vec.push(nft_tx.clone()),
-                            _ => (),
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::NftTx,
-                                AdditionalEntity::NftTx(vec![nft_tx]),
-                            );
-                        }
-                    };
-                }
-                TokenTx::DisposeEntrustedNft(tx) => {
-                    let nft_tx = nft_tx::Model::from(tx, tx_entity);
-                    match store.get_mut(&AdditionalEntityKey::NftTx) {
-                        Some(v) => match v {
-                            AdditionalEntity::NftTx(vec) => vec.push(nft_tx.clone()),
-                            _ => (),
-                        },
-                        None => {
-                            store.insert(
-                                AdditionalEntityKey::NftTx,
-                                AdditionalEntity::NftTx(vec![nft_tx]),
-                            );
-                        }
-                    };
-                }
-                TokenTx::BurnNft(_) => {
-                    // TODO: BurnNft 트랜잭션에서 token_id 추가 되어야 될듯.
-                    // let nft_tx = nft_tx::Model::from(tx, tx_entity);
-                    // match store.get_mut(&AdditionalEntity::NftTx) {
-                    //   Some(v) => v.push(Box::new(nft_tx)),
-                    //   None => { store.insert(AdditionalEntity::NftTx, vec![Box::new(nft_tx)]); },
-                    // };
-                }
-                _ => {}
-            },
-            _ => {}
+            Transaction::TokenTx(tx) => tx.get_nft_active_model(tx_entity, from),
+            _ => None
+        }
+    }
+    pub fn get_acc_active_model(&self) -> Option<account_entity::ActiveModel> {
+        match self {
+            Transaction::AccountTx(tx) => tx.get_acc_active_model(),
+            _ => None
         }
     }
 }

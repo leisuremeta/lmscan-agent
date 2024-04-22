@@ -2,9 +2,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
 use crate::{
-    library::common::now,
-    transaction::{Extract, NftTx},
-    tx_entity,
+    library::common::now, transaction::token_transaction::TokenTx, tx_entity
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -25,23 +23,15 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-    pub fn from<T: NftTx>(tx: &T, tx_entity: &tx_entity::ActiveModel) -> ActiveModel {
+    pub fn from(tx: &TokenTx, tx_entity: &tx_entity::ActiveModel, from: String, to: String) -> ActiveModel {
         ActiveModel {
             tx_hash: tx_entity.hash.clone(),
             token_id: Set(tx.token_id()),
             action: Set(tx.sub_type()),
-            from_addr: tx_entity.from_addr.clone(),
-            to_addr: Set(tx_entity
-                .to_addr
-                .clone()
-                .unwrap()
-                .first()
-                .unwrap_or(&"".to_string())
-                .to_string()),
+            from_addr: Set(from),
+            to_addr: Set(to),
             event_time: tx_entity.event_time.clone(),
             created_at: Set(now()),
         }
     }
 }
-
-impl Extract for ActiveModel {}

@@ -4,8 +4,7 @@ use sea_orm::Set;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    library::common::{as_timestamp, now},
-    tx_entity::ActiveModel,
+    account_entity, library::common::{as_timestamp, now}, tx_entity::ActiveModel
 };
 
 use super::{common::Common, TransactionWithResult};
@@ -15,6 +14,45 @@ pub enum AccountTx {
     AddPublicKeySummaries(AddPublicKeySummaries),
     CreateAccount(CreateAccount),
     UpdateAccount(UpdateAccount),
+}
+
+impl Common for AccountTx {
+    fn created_at(&self) -> i64 {
+        match self {
+            AccountTx::AddPublicKeySummaries(t) => t.created_at(),
+            AccountTx::CreateAccount(t) => t.created_at(),
+            AccountTx::UpdateAccount(t) => t.created_at(),
+        }
+    }
+
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        tx: TransactionWithResult,
+    ) -> ActiveModel {
+        match self {
+            AccountTx::AddPublicKeySummaries(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            AccountTx::CreateAccount(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            AccountTx::UpdateAccount(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+        }
+    }
+}
+
+impl AccountTx {
+    pub fn get_acc_active_model(&self) -> Option<account_entity::ActiveModel> {
+        match self {
+            AccountTx::CreateAccount(tx) => Some(account_entity::Model::from(tx)),
+            _ => None
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,10 +89,8 @@ impl Common for AddPublicKeySummaries {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -62,15 +98,10 @@ impl Common for AddPublicKeySummaries {
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("AddPublicKeySummaries".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![self.account.to_owned()]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -82,10 +113,8 @@ impl Common for CreateAccount {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
@@ -93,15 +122,10 @@ impl Common for CreateAccount {
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("CreateAccount".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![self.account.to_owned()]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -113,58 +137,19 @@ impl Common for UpdateAccount {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         _: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
-            from_addr: Set(from_account),
             sub_type: Set("UpdateAccount".to_string()),
-            to_addr: Set(vec![self.account.to_owned().clone()]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
-        }
-    }
-}
-
-impl Common for AccountTx {
-    fn created_at(&self) -> i64 {
-        match self {
-            AccountTx::AddPublicKeySummaries(t) => t.created_at(),
-            AccountTx::CreateAccount(t) => t.created_at(),
-            AccountTx::UpdateAccount(t) => t.created_at(),
-        }
-    }
-
-    fn from(
-        &self,
-        hash: String,
-        from_account: String,
-        block_hash: String,
-        block_number: i64,
-        json: String,
-        tx: TransactionWithResult,
-    ) -> ActiveModel {
-        match self {
-            AccountTx::AddPublicKeySummaries(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
-            AccountTx::CreateAccount(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
-            AccountTx::UpdateAccount(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
         }
     }
 }

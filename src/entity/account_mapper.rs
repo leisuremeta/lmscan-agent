@@ -2,7 +2,6 @@ use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
 use crate::library::common::as_timestamp;
-use crate::transaction::Extract;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "account_mapper")]
@@ -42,5 +41,3 @@ impl Model {
         }
     }
 }
-
-impl Extract for ActiveModel {}

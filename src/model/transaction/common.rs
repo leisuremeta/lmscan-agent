@@ -7,10 +7,8 @@ pub trait Common {
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
         tx: TransactionWithResult,
     ) -> ActiveModel;
 }

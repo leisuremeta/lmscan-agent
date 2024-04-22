@@ -7,7 +7,7 @@ use crate::{
     store::free_balance::FreeBalanceStore,
     store::locked_balance::LockedBalanceStore,
     transaction::{
-        common::Common, AdditionalEntity, ExtractEntity, Job, TransactionWithResult,
+        common::Common, Job, TransactionWithResult,
     },
     model::balance::Balance,
     block_entity::Model as BlockModel,
@@ -94,7 +94,7 @@ async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String>
 }
 fn parse_time(str: &String) -> i64 {
     match DateTime::parse_from_rfc3339(str) {
-        Ok(x) => x.naive_utc().timestamp(),
+        Ok(x) => x.naive_utc().and_utc().timestamp(),
         Err(_) => Local::now().timestamp(),
     }
 }
@@ -192,9 +192,10 @@ async fn build_saved_state_proc(
     while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await {
         let mut curr_balance_info = prev_balance_info.clone();
         let mut tx_entities = vec![];
-        let mut additional_entity_store = HashMap::new();
         let mut balance_updated_accounts = HashSet::new();
         let mut nft_owner_vec: Vec<(String, String, String)> = vec![];
+        let mut nft_tx_vec: Vec<nft_tx::ActiveModel> = vec![];
+        let mut new_acc_vec: Vec<account_entity::ActiveModel> = vec![];
 
         let block_hashs = block_states
             .iter()
@@ -242,24 +243,27 @@ async fn build_saved_state_proc(
             .map(|b| (b.hash.clone().unwrap(), b.number.clone().unwrap()))
             .filter_map(|(hash, number)| txs_in_block.remove(&hash).map(|txs| (number, txs)))
         {
+
+            let mut tx_res_vec: Vec<TransactionWithResult> = vec![];
             // Scan tx entity process
             for (tx_state, tx_res) in txs.iter() {
                 let tx = &tx_res.signed_tx.value;
                 let tx_entity = tx.from(
                     tx_state.hash.clone(),
-                    tx_res.signed_tx.sig.account.clone(),
                     tx_state.block_hash.clone(),
                     number,
-                    tx_state.json.clone(),
                     tx_res.clone(),
                 );
-                tx.extract_additional_entity(&tx_entity, &mut additional_entity_store)
-                    .await;
+                tx_res_vec.push(tx_res.to_owned());
+                if let Some(nft) = tx.get_nft_active_model(&tx_entity, tx_res.signed_tx.sig.account.clone()) {
+                    nft_tx_vec.push(nft);
+                }
+                if let Some(acc) = tx.get_acc_active_model() {
+                    new_acc_vec.push(acc);
+                }
                 tx_entities.push(tx_entity);
             }
 
-            let tx_res_vec: Vec<TransactionWithResult> =
-                txs.into_iter().map(|(_, tx_res)| tx_res).collect();
             // Free balance fungible txs
             for free_tx in tx_res_vec.iter().filter(|tx_res| tx_res.is_free_fungible()) {
                 balance_updated_accounts.extend(
@@ -316,43 +320,27 @@ async fn build_saved_state_proc(
                             .exec(txn)
                             .await?;
                     }
-                    for (_, entities) in additional_entity_store {
-                        match entities {
-                            AdditionalEntity::NftTx(v) => {
-                                Insert::many(v)
-                                    .on_conflict(
-                                        OnConflict::column(nft_tx::Column::TxHash)
-                                            .do_nothing()
-                                            .to_owned(),
-                                    )
+                    if !nft_tx_vec.is_empty() {
+                        Insert::many(nft_tx_vec)
+                            .on_conflict(
+                                OnConflict::column(nft_tx::Column::TxHash)
                                     .do_nothing()
-                                    .exec(txn)
-                                    .await?;
-                            }
-                            AdditionalEntity::CreateAccount(v) => {
-                                Insert::many(v)
-                                    .on_conflict(
-                                        OnConflict::column(account_entity::Column::Address)
-                                            .do_nothing()
-                                            .to_owned(),
-                                    )
+                                    .to_owned(),
+                            )
+                            .do_nothing()
+                            .exec(txn)
+                            .await?;
+                    }
+                    if !new_acc_vec.is_empty() {
+                        Insert::many(new_acc_vec)
+                            .on_conflict(
+                                OnConflict::column(account_entity::Column::Address)
                                     .do_nothing()
-                                    .exec_without_returning(txn)
-                                    .await?;
-                            }
-                            AdditionalEntity::CreateNftFile(v) => {
-                                // why chunks size 10?
-                                Insert::many(v)
-                                    .on_conflict(
-                                        OnConflict::column(nft_file::Column::TokenId)
-                                            .do_nothing()
-                                            .to_owned(),
-                                    )
-                                    .do_nothing()
-                                    .exec(txn)
-                                    .await?;
-                            }
-                        }
+                                    .to_owned(),
+                            )
+                            .do_nothing()
+                            .exec_without_returning(txn)
+                            .await?;
                     }
                     if !nft_owner_vec.is_empty() {
                         let mut m: HashMap<String, &(String, String, String)> = HashMap::new();
@@ -434,7 +422,6 @@ async fn build_saved_state_proc(
             // TODO: break 하면 해당 block 다시 처리하는지 확인해야됨!
             FreeBalanceStore::rollback(snapshot_stage);
             LockedBalanceStore::rollback();
-            error!("save transaction process err: {err}");
             panic!("save transaction process err: {err}");
         } else {
             prev_balance_info = curr_balance_info;
