@@ -43,7 +43,10 @@ impl ApiService {
     pub async fn get_request<S: serde::de::DeserializeOwned + Debug>(
         url: Url,
     ) -> Result<S, String> {
-        CLIENT.get(url.as_str()).send().and_then(|res| res.json()).map_err(|e| e.to_string()).await
+        CLIENT.get(url.as_str()).send().and_then(|res| res.json()).map_err(|e| {
+            error!("{}", url);
+            e.to_string()
+        }).await
     }
 
     pub async fn get_request_until<T: reqwest::IntoUrl, S: serde::de::DeserializeOwned + Debug>(
@@ -74,7 +77,7 @@ impl ApiService {
         Self::get_request(Self::make_url(&("/tx/".to_owned() + hash))).await
     }
 
-    pub async fn get_tx_with_json_always(hash: &str) -> (TransactionWithResult, String) {
+    pub async fn get_tx_with_json_always(hash: &str) -> Result<(TransactionWithResult, String), String> {
         Self::get_request::<TransactionWithResult>(
             Self::make_url(&("/tx/".to_owned() + hash))
         ).await
@@ -83,7 +86,6 @@ impl ApiService {
             .map(|txt| (result, txt))
             .map_err(|err| err.to_string())
         )
-        .unwrap()
     }
 
     pub async fn get_balance(

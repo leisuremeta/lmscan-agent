@@ -136,14 +136,19 @@ async fn save_diff_state_proc(
         block_states.push(block_state);
 
         for tx_hash in &block.transaction_hashes {
-            let (tx_result, json) = ApiService::get_tx_with_json_always(tx_hash).await;
-            let tx_state = tx_state::Model::from(
-                tx_hash.as_str(),
-                curr_block_hash.as_str(),
-                &tx_result,
-                json,
-            );
-            txs.push(tx_state);
+            let res = ApiService::get_tx_with_json_always(tx_hash).await;
+            match res {
+                Ok((tx_result, json)) => {
+                    let tx_state = tx_state::Model::from(
+                        tx_hash.as_str(),
+                        curr_block_hash.as_str(),
+                        &tx_result,
+                        json,
+                    );
+                    txs.push(tx_state);
+                }
+                Err(e) => error!("{e}")
+            }
         }
 
         curr_block_hash = block.header.parent_hash.clone();
@@ -185,7 +190,7 @@ async fn build_saved_state_proc(
     _: &mut HashMap<String, String>,
 ) -> HashMap<String, Balance> {
     while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await {
-        let mut curr_balance_info = prev_balance_info;
+        let mut curr_balance_info = prev_balance_info.clone();
         let mut tx_entities = vec![];
         let mut additional_entity_store = HashMap::new();
         let mut balance_updated_accounts = HashSet::new();
