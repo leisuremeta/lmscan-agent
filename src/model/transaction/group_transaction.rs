@@ -14,6 +14,45 @@ pub enum GroupTx {
     CreateGroup(CreateGroup),
 }
 
+impl Common for GroupTx {
+    fn created_at(&self) -> i64 {
+        match self {
+            GroupTx::AddAccounts(t) => t.created_at(),
+            GroupTx::CreateGroup(t) => t.created_at(),
+        }
+    }
+
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        tx: TransactionWithResult,
+    ) -> ActiveModel {
+        match self {
+            GroupTx::AddAccounts(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            GroupTx::CreateGroup(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+        }
+    }
+}
+
+impl GroupTx {
+    pub fn get_accounts(&self, signer: String) -> Vec<String> {
+        match self {
+            GroupTx::AddAccounts(tx) => {
+                let mut v = tx.accounts.clone();
+                v.push(signer);
+                v
+            }
+            GroupTx::CreateGroup(tx) => vec![tx.coordinator.clone()],
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddAccounts {
@@ -76,32 +115,6 @@ impl Common for CreateGroup {
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-        }
-    }
-}
-
-impl Common for GroupTx {
-    fn created_at(&self) -> i64 {
-        match self {
-            GroupTx::AddAccounts(t) => t.created_at(),
-            GroupTx::CreateGroup(t) => t.created_at(),
-        }
-    }
-
-    fn from(
-        &self,
-        hash: String,
-        block_hash: String,
-        block_number: i64,
-        tx: TransactionWithResult,
-    ) -> ActiveModel {
-        match self {
-            GroupTx::AddAccounts(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            GroupTx::CreateGroup(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
         }
     }
 }

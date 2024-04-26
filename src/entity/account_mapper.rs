@@ -1,7 +1,4 @@
 use sea_orm::entity::prelude::*;
-use sea_orm::*;
-
-use crate::library::common::as_timestamp;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "account_mapper")]
@@ -31,13 +28,3 @@ pub enum Relation {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
-impl Model {
-    pub fn from(address: String, hash: String, time: String) -> ActiveModel {
-        ActiveModel {
-            address: Set(address),
-            hash: Set(hash),
-            event_time: Set(as_timestamp(&time)),
-        }
-    }
-}

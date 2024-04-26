@@ -21,9 +21,6 @@ use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::DatabaseConnection;
 use sea_orm::*;
 
-use itertools::Itertools;
-
-use chrono::{DateTime, Local};
 use log::{error, info};
 use tokio::time::sleep;
 
@@ -83,20 +80,6 @@ async fn get_balance_infos(db: &DatabaseConnection) -> HashMap<String, Balance> 
         .into_iter()
         .map(|b| (b.address.clone(), Balance::new(b.free, b.locked)))
         .collect::<HashMap<String, Balance>>()
-}
-
-async fn get_nft_owner_infos(db: &DatabaseConnection) -> HashMap<String, String> {
-    let nft_owners = nft_owner::Entity::find().all(db).await.unwrap();
-    nft_owners
-        .into_iter()
-        .map(|nft| (nft.token_id, nft.owner))
-        .collect::<HashMap<String, String>>()
-}
-fn parse_time(str: &String) -> i64 {
-    match DateTime::parse_from_rfc3339(str) {
-        Ok(x) => x.naive_utc().and_utc().timestamp(),
-        Err(_) => Local::now().timestamp(),
-    }
 }
 
 fn extract_updated_balance_accounts(
@@ -187,15 +170,14 @@ async fn save_diff_state_proc(
 async fn build_saved_state_proc(
     db: &DatabaseConnection,
     mut prev_balance_info: HashMap<String, Balance>,
-    _: &mut HashMap<String, String>,
 ) -> HashMap<String, Balance> {
     while let Some(block_states) = get_block_states_not_built_order_by_number_asc_limit(db).await {
         let mut curr_balance_info = prev_balance_info.clone();
         let mut tx_entities = vec![];
         let mut balance_updated_accounts = HashSet::new();
-        let mut nft_owner_vec: Vec<(String, String, String)> = vec![];
         let mut nft_tx_vec: Vec<nft_tx::ActiveModel> = vec![];
         let mut new_acc_vec: Vec<account_entity::ActiveModel> = vec![];
+        let mut acc_map_vec: Vec<account_mapper::Model> = vec![];
 
         let block_hashs = block_states
             .iter()
@@ -261,6 +243,7 @@ async fn build_saved_state_proc(
                 if let Some(acc) = tx.get_acc_active_model() {
                     new_acc_vec.push(acc);
                 }
+                acc_map_vec = tx.get_account_mapper(tx_res.signed_tx.sig.account.clone(), tx_state.hash.clone(), tx_state.event_time);
                 tx_entities.push(tx_entity);
             }
 
@@ -284,12 +267,6 @@ async fn build_saved_state_proc(
                         .await,
                 );
             }
-
-            // Nft owner transfer txs
-            nft_owner_vec = tx_res_vec
-                .iter()
-                .filter_map(|tx| tx.update_nft_owner_info())
-                .collect_vec();
         }
 
         let updated_balance_accounts =
@@ -342,38 +319,6 @@ async fn build_saved_state_proc(
                             .exec_without_returning(txn)
                             .await?;
                     }
-                    if !nft_owner_vec.is_empty() {
-                        let mut m: HashMap<String, &(String, String, String)> = HashMap::new();
-                        for tuple in nft_owner_vec.iter() {
-                            match m.get(&tuple.0) {
-                                Some(other) => {
-                                    if tuple.2.cmp(&other.2).is_le() {
-                                        continue;
-                                    } else {
-                                        m.insert(tuple.0.clone(), tuple);
-                                    }
-                                }
-                                None => { m.insert(tuple.0.clone(), tuple); }
-                            }
-                        }
-                        let owners = m.into_values().map(
-                            |(ti, ow, et)| nft_owner::ActiveModel {
-                                token_id: Set(ti.to_owned()),
-                                owner: Set(ow.to_owned()),
-                                event_time: Set(parse_time(et)),
-                                created_at: NotSet,
-                            },
-                        );
-                        nft_owner::Entity::insert_many(owners)
-                            .on_conflict(
-                                OnConflict::column(nft_owner::Column::TokenId)
-                                    .update_columns([nft_owner::Column::Owner, nft_owner::Column::EventTime])
-                                    .to_owned(),
-                            )
-                            .do_nothing()
-                            .exec(txn)
-                            .await?;
-                    }
                     if !updated_balance_accounts.is_empty() {
                         let bals = updated_balance_accounts.iter().map(|(addr, bal)| {
                             balance_entity::ActiveModel {
@@ -405,6 +350,12 @@ async fn build_saved_state_proc(
                             .exec(txn)
                             .await?;
                     }
+                    if !acc_map_vec.is_empty() {
+                        let v = acc_map_vec.into_iter().map(|m| m.into_active_model()).collect::<Vec<account_mapper::ActiveModel>>();
+                        account_mapper::Entity::insert_many(v)
+                        .exec(txn)
+                        .await?;
+                    }
 
                     if !FreeBalanceStore::flush(snapshot_stage, free_state)
                         || !LockedBalanceStore::flush(snapshot_stage, locked_state)
@@ -434,15 +385,14 @@ pub async fn check_loop(db: DatabaseConnection) {
     info!("check loop start");
     tokio::spawn(async move {
         let mut balance_info = get_balance_infos(&db).await;
-        let mut nft_owner_info = get_nft_owner_infos(&db).await;
-        balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
+        balance_info = build_saved_state_proc(&db, balance_info).await;
         loop {
             match ApiService::get_node_status_always().await.ok() {
                Some(node_status) => {
                     let target_hash = get_last_built_or_genesis_block_hash(&node_status, &db).await;
                     save_diff_state_proc(node_status.best_hash.clone(), target_hash, &db).await;
 
-                    balance_info = build_saved_state_proc(&db, balance_info, &mut nft_owner_info).await;
+                    balance_info = build_saved_state_proc(&db, balance_info).await;
                }
                _ =>  error!("can't load status")
             }

@@ -131,6 +131,25 @@ impl TokenTx {
             _ => String::from("")
         }
     }
+
+    pub fn get_accounts(&self, signer: String) -> Vec<String> {
+        let mut v = match self {
+            TokenTx::EntrustNft(tx) =>vec![tx.to.clone()],
+            TokenTx::EntrustFungibleToken(tx) => vec![tx.to.clone()],
+            TokenTx::TransferNft(tx) => vec![tx.output.clone()],
+            TokenTx::TransferFungibleToken(tx) => tx.outputs.clone().into_keys().collect(),
+            TokenTx::MintNft(tx) => vec![tx.output.clone()],
+            TokenTx::MintFungibleToken(tx) => tx.outputs.clone().into_keys().collect(),
+            TokenTx::DisposeEntrustedNft(tx) => match tx.output.clone() {
+                Some(v) => vec![v],
+                None => vec![]
+            }
+            TokenTx::DisposeEntrustedFungibleToken(tx) => tx.outputs.clone().into_keys().collect(),
+            _ => vec![]
+        };
+        v.push(signer);
+        v
+    }
 }
 
 // TokenTx::MintNft(tx) => 

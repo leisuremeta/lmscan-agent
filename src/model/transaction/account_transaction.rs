@@ -53,6 +53,13 @@ impl AccountTx {
             _ => None
         }
     }
+
+    pub fn get_accounts(&self) -> Vec<String> {
+        match self {
+            AccountTx::CreateAccount(tx) => vec![tx.account.clone()],
+            _ => vec![],
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -6,6 +6,7 @@ pub mod reward_transaction;
 pub mod token_transaction;
 
 use bigdecimal::BigDecimal;
+use itertools::Itertools;
 use core::panic;
 use sea_orm::prelude::async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -18,7 +19,7 @@ use crate::store::locked_balance::LockedBalanceStore;
 use crate::store::sled_store::SledStore;
 use crate::store::wal::State;
 use crate::tx_entity::{self, ActiveModel};
-use crate::{account_entity, nft_tx};
+use crate::{account_entity, account_mapper, nft_tx};
 
 use self::account_transaction::*;
 use self::agenda_transaction::*;
@@ -116,26 +117,6 @@ impl Common for Transaction {
             }
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct NftMetaInfo {
-    #[serde(rename = "Creator_description")]
-    pub creator_description: String,
-    #[serde(rename = "Collection_description")]
-    pub collection_description: String,
-    #[serde(rename = "Rarity")]
-    pub rarity: String,
-    #[serde(rename = "NFT_checksum")]
-    pub nft_checksum: String,
-    #[serde(rename = "Collection_name")]
-    pub collection_name: String,
-    #[serde(rename = "Creator")]
-    pub creator: String,
-    #[serde(rename = "NFT_name")]
-    pub nft_name: String,
-    #[serde(rename = "NFT_URI")]
-    pub nft_uri: String,
 }
 
 #[async_trait]
@@ -479,5 +460,19 @@ impl Transaction {
             Transaction::AccountTx(tx) => tx.get_acc_active_model(),
             _ => None
         }
+    }
+    pub fn get_account_mapper(&self, signer: String, hash: String, event_time: i64) -> Vec<account_mapper::Model> {
+        let v = match self {
+            Transaction::RewardTx(tx) => tx.get_accounts(signer.clone()),
+            Transaction::TokenTx(tx) => tx.get_accounts(signer.clone()),
+            Transaction::AccountTx(tx) => tx.get_accounts(),
+            Transaction::GroupTx(tx) => tx.get_accounts(signer.clone()),
+            Transaction::AgendaTx(_) => vec![signer],
+        };
+        v.into_iter().map(|account| account_mapper::Model {
+            address: account,
+            hash: hash.clone(),
+            event_time: event_time,
+        }).collect_vec()
     }
 }

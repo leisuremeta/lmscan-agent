@@ -16,25 +16,6 @@ pub enum AgendaTx {
     VoteSimpleAgenda(VoteSimpleAgenda),
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SuggestSimpleAgenda {
-    pub created_at: String,
-    pub title: String,
-    pub voting_token: String,
-    pub vote_start: String,
-    pub vote_end: String,
-    pub vote_options: HashMap<String, String>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VoteSimpleAgenda {
-    pub created_at: String,
-    pub agenda_tx_hash: String,
-    pub selected_option: String,
-}
-
 impl Common for AgendaTx {
     fn created_at(&self) -> i64 {
         match self {
@@ -59,6 +40,35 @@ impl Common for AgendaTx {
             }
         }
     }
+}
+
+impl AgendaTx {
+    pub fn get_accounts(&self) -> Vec<String> {
+        // only signed account
+        match self {
+            AgendaTx::SuggestSimpleAgenda(_) => todo!(),
+            AgendaTx::VoteSimpleAgenda(_) => todo!(),
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestSimpleAgenda {
+    pub created_at: String,
+    pub title: String,
+    pub voting_token: String,
+    pub vote_start: String,
+    pub vote_end: String,
+    pub vote_options: HashMap<String, String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoteSimpleAgenda {
+    pub created_at: String,
+    pub agenda_tx_hash: String,
+    pub selected_option: String,
 }
 
 impl Common for SuggestSimpleAgenda {
