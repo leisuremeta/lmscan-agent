@@ -5,6 +5,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub hash: String,
+    pub signer: String,
     pub token_type: String,
     pub tx_type: String, // col_name : type
     pub sub_type: String,

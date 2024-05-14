@@ -152,10 +152,11 @@ impl Common for RecordActivity {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("RecordActivity".to_string()),
@@ -176,10 +177,11 @@ impl Common for RegisterDao {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("RegisterDao".to_string()),
@@ -200,10 +202,11 @@ impl Common for UpdateDao {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("UpdateDao".to_string()),
@@ -224,10 +227,11 @@ impl Common for OfferReward {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("OfferReward".to_string()),
@@ -248,10 +252,11 @@ impl Common for ExecuteReward {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("ExecuteReward".to_string()),
@@ -273,10 +278,11 @@ impl Common for ExecuteOwnershipReward {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("ExecuteOwnershipReward".to_string()),
@@ -298,10 +304,11 @@ impl Common for BuildSnapshot {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Reward".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("BuildSnapshot".to_string()),

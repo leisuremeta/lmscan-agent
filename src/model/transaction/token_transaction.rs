@@ -138,7 +138,6 @@ impl TokenTx {
             TokenTx::EntrustFungibleToken(tx) => vec![tx.to.clone()],
             TokenTx::TransferNft(tx) => vec![tx.output.clone()],
             TokenTx::TransferFungibleToken(tx) => tx.outputs.clone().into_keys().collect(),
-            TokenTx::MintNft(tx) => vec![tx.output.clone()],
             TokenTx::MintFungibleToken(tx) => tx.outputs.clone().into_keys().collect(),
             TokenTx::DisposeEntrustedNft(tx) => match tx.output.clone() {
                 Some(v) => vec![v],
@@ -292,10 +291,11 @@ impl Common for EntrustNft {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("EntrustNft".to_string()),
@@ -316,10 +316,11 @@ impl Common for EntrustFungibleToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("EntrustFungibleToken".to_string()),
@@ -340,10 +341,11 @@ impl Common for BurnFungibleToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("BurnFungibleToken".to_string()),
@@ -364,10 +366,11 @@ impl Common for TransferNft {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("NFT".to_string()),
             sub_type: Set("TransferNft".to_string()),
@@ -388,10 +391,11 @@ impl Common for TransferFungibleToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("TransferFungibleToken".to_string()),
@@ -412,10 +416,11 @@ impl Common for MintNft {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("NFT".to_string()),
             sub_type: Set("MintNft".to_string()),
@@ -436,10 +441,11 @@ impl Common for MintFungibleToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("MintFungibleToken".to_string()),
@@ -460,10 +466,11 @@ impl Common for DefineToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set(self.definition_id.clone()),
             sub_type: Set("DefineToken".to_string()),
@@ -484,10 +491,11 @@ impl Common for DisposeEntrustedNft {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("NFT".to_string()),
             sub_type: Set("DisposeEntrustedNft".to_string()),
@@ -508,10 +516,11 @@ impl Common for DisposeEntrustedFungibleToken {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("DisposeEntrustedFungibleToken".to_string()),
@@ -532,10 +541,11 @@ impl Common for BurnNft {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Token".to_string()),
             token_type: Set("NFT".to_string()),
             sub_type: Set("BurnNft".to_string()),

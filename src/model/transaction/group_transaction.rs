@@ -80,10 +80,11 @@ impl Common for AddAccounts {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Group".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("AddAccounts".to_string()),
@@ -104,10 +105,11 @@ impl Common for CreateGroup {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("LM".to_string()),
             tx_type: Set("Group".to_string()),
             sub_type: Set("CreateGroup".to_string()),

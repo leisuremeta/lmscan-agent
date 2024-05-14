@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 use chrono::{DateTime, Local};
+use itertools::Itertools;
 
 use crate::{nft_file, nft_owner, tx_state};
 use crate::transaction::token_transaction::TokenTx;
@@ -96,10 +97,16 @@ async fn update_nft_from_tx(
 
     let res = db.transaction::<_, (), DbErr>(|dbtx| { Box::pin(async move {
         if !file_map.is_empty() {
-            nft_file::Entity::insert_many(file_map.into_values())
-                .on_conflict(OnConflict::column(nft_file::Column::TokenId).do_nothing().to_owned())
-                .do_nothing()
-                .exec(dbtx).await?;
+            let values: Vec<Vec<nft_file::ActiveModel>> = file_map.into_values().collect_vec()
+                .chunks(500) // 11 fileds * records < 6,000
+                .map(|chunk| chunk.to_vec())
+                .collect();
+            for input in values {
+                nft_file::Entity::insert_many(input)
+                    .on_conflict(OnConflict::column(nft_file::Column::TokenId).do_nothing().to_owned())
+                    .do_nothing()
+                    .exec(dbtx).await?;
+            }
         }
         if !owner_map.is_empty() {
             for (id, (owner, et)) in owner_map.iter() {

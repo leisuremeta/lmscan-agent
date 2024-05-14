@@ -469,7 +469,7 @@ impl Transaction {
             Transaction::GroupTx(tx) => tx.get_accounts(signer.clone()),
             Transaction::AgendaTx(_) => vec![signer],
         };
-        v.into_iter().map(|account| account_mapper::Model {
+        v.into_iter().sorted().dedup().map(|account| account_mapper::Model {
             address: account,
             hash: hash.clone(),
             event_time: event_time,

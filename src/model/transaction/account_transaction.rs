@@ -98,10 +98,11 @@ impl Common for AddPublicKeySummaries {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("AddPublicKeySummaries".to_string()),
@@ -122,10 +123,11 @@ impl Common for CreateAccount {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("CreateAccount".to_string()),
@@ -146,10 +148,11 @@ impl Common for UpdateAccount {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("UpdateAccount".to_string()),

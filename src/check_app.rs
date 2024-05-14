@@ -24,7 +24,7 @@ use sea_orm::*;
 use log::{error, info};
 use tokio::time::sleep;
 
-static DOWNLOAD_BATCH_UNIT: usize = 500;
+static DOWNLOAD_BATCH_UNIT: usize = 400;
 static BUILD_BATCH_UNIT: u64 = 50;
 
 async fn get_last_built_or_genesis_block_hash(
@@ -121,14 +121,19 @@ async fn save_diff_state_proc(
         for tx_hash in &block.transaction_hashes {
             let res = ApiService::get_tx_with_json_always(tx_hash).await;
             match res {
-                Ok((tx_result, json)) => {
-                    let tx_state = tx_state::Model::from(
-                        tx_hash.as_str(),
-                        curr_block_hash.as_str(),
-                        &tx_result,
-                        json,
-                    );
-                    txs.push(tx_state);
+                Ok(json) => {
+                    match parse_from_json_str::<TransactionWithResult>(&json) {
+                        Ok(tx) => {
+                            let tx_state = tx_state::Model::from(
+                                tx_hash.as_str(),
+                                curr_block_hash.as_str(),
+                                &tx,
+                                json,
+                            );
+                            txs.push(tx_state);
+                        }
+                        Err(e) => error!("{e}")
+                    }
                 }
                 Err(e) => error!("{e}")
             }
@@ -243,7 +248,7 @@ async fn build_saved_state_proc(
                 if let Some(acc) = tx.get_acc_active_model() {
                     new_acc_vec.push(acc);
                 }
-                acc_map_vec = tx.get_account_mapper(tx_res.signed_tx.sig.account.clone(), tx_state.hash.clone(), tx_state.event_time);
+                acc_map_vec.append(&mut tx.get_account_mapper(tx_res.signed_tx.sig.account.clone(), tx_state.hash.clone(), tx_state.event_time));
                 tx_entities.push(tx_entity);
             }
 

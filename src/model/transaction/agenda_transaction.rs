@@ -80,10 +80,11 @@ impl Common for SuggestSimpleAgenda {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("".to_string()),
             tx_type: Set("Agenda".to_string()),
             sub_type: Set("SuggestSimpleAgenda".to_string()),
@@ -104,10 +105,11 @@ impl Common for VoteSimpleAgenda {
         hash: String,
         block_hash: String,
         block_number: i64,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("".to_string()),
             tx_type: Set("Agenda".to_string()),
             sub_type: Set("VoteSimpleAgenda".to_string()),
