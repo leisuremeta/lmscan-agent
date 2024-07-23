@@ -5,7 +5,7 @@ mod group_transaction;
 pub mod reward_transaction;
 pub mod token_transaction;
 
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, Zero};
 use itertools::Itertools;
 use core::panic;
 use sea_orm::prelude::async_trait::async_trait;
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 extern crate chrono;
+use crate::balance_app::BalanceOp;
 use crate::service::finder_service::Finder;
 use crate::store::free_balance::FreeBalanceStore;
 use crate::store::locked_balance::LockedBalanceStore;
@@ -121,6 +122,7 @@ impl Common for Transaction {
 
 #[async_trait]
 pub trait Job {
+    async fn update_balance(&self, hash: String) -> Vec<BalanceOp>;
     async fn update_free_balance(
         &self,
         info: &mut HashMap<String, Balance>,
@@ -144,8 +146,6 @@ impl Job for TransactionWithResult {
             Transaction::RewardTx(tx) => matches!(
                 tx,
                 RewardTx::OfferReward(_)
-                    | RewardTx::ExecuteOwnershipReward(_)
-                    | RewardTx::ExecuteReward(_)
             ),
             Transaction::TokenTx(tx) => matches!(
                 tx,
@@ -215,6 +215,141 @@ impl Job for TransactionWithResult {
         .collect()
     }
 
+    async fn update_balance(&self, hash: String) -> Vec<BalanceOp> {
+        let mut res= vec![];
+        match &self.signed_tx.value {
+            Transaction::RewardTx(tx) => match tx {
+                RewardTx::OfferReward(t) => {
+                    let token = t.token_definition_id.clone();
+                    let signer = self.signed_tx.sig.account.clone();
+                    for (address, free) in &t.outputs {
+                        res.push(BalanceOp::AddFree { 
+                            hash: hash.clone(),
+                            address: address.clone(),
+                            free: free.clone(),
+                            token: token.clone(),
+                        });
+                    }
+                    for inp_hash in &t.inputs {
+                        res.push(BalanceOp::SpendFree { 
+                            hash: inp_hash.clone(),
+                            address: signer.to_owned(),
+                            token: token.clone(),
+                        });
+                    }
+                }
+                _ => (),
+            },
+            Transaction::TokenTx(tx) => match tx {
+                TokenTx::TransferFungibleToken(t) => {
+                    let token = t.token_definition_id.clone();
+                    let signer = self.signed_tx.sig.account.clone();
+                    for (address, free) in &t.outputs {
+                        res.push(BalanceOp::AddFree { 
+                            hash: hash.clone(),
+                            address: address.clone(),
+                            free: free.clone(),
+                            token: token.clone(),
+                        });
+                    }
+                    for inp_hash in &t.inputs {
+                        res.push(BalanceOp::SpendFree { 
+                            hash: inp_hash.clone(),
+                            address: signer.to_owned(),
+                            token: token.clone(),
+                        });
+                    }
+                }
+                TokenTx::MintFungibleToken(t) => {
+                    let token = t.definition_id.clone();
+                    for (address, free) in &t.outputs {
+                        res.push(BalanceOp::AddFree { 
+                            hash: hash.clone(),
+                            address: address.clone(),
+                            free: free.clone(),
+                            token: token.clone(),
+                        });
+                    }
+                }
+                TokenTx::BurnFungibleToken(t) => {
+                    let token = t.definition_id.clone();
+                    let signer = self.signed_tx.sig.account.clone();
+                    let remainder = match self.result.clone().unwrap() {
+                       TransactionResult::BurnFungibleTokenResult { output_amount } => output_amount,
+                       _ => BigDecimal::zero(),
+                    };
+                    res.push(BalanceOp::AddFree { 
+                        hash: hash.clone(),
+                        address: signer.clone(),
+                        free: remainder.clone(),
+                        token: token.clone(),
+                    });
+                    for inp_hash in &t.inputs {
+                        res.push(BalanceOp::SpendFree { 
+                            hash: inp_hash.clone(),
+                            address: signer.to_owned(),
+                            token: token.clone(),
+                        });
+                    }
+                }
+                TokenTx::DisposeEntrustedFungibleToken(t) => {
+                    let token = t.definition_id.clone();
+                    if !t.outputs.is_empty() {
+                        for (address, free) in t.outputs.clone() {
+                            res.push(BalanceOp::AddFree { 
+                                hash: hash.clone(),
+                                address: address.clone(),
+                                free: free.clone(),
+                                token: token.clone(),
+                            });
+                        }
+                        for inp_hash in &t.inputs {
+                            res.push(BalanceOp::SpendLock { 
+                                hash: inp_hash.clone(),
+                                token: token.clone(),
+                            });
+                        }
+                    } else {
+                        for inp_hash in &t.inputs {
+                            res.push(BalanceOp::ToOwner { 
+                                new_hash: hash.clone(),
+                                hash: inp_hash.clone(),
+                                token: token.clone(),
+                            });
+                        }
+                    }
+                }
+                // lock tx start
+                TokenTx::EntrustFungibleToken(t) => {
+                    let token = t.definition_id.clone();
+                    let signer = self.signed_tx.sig.account.clone();
+                    let remainder = match &self.result {
+                        Some(TransactionResult::EntrustFungibleTokenResult { remainder }) => remainder,
+                        _ => panic!("{:?} can't find remainder", self),
+                    };
+                    res.push(BalanceOp::AddLock { 
+                        hash: hash.clone(),
+                        address: signer.clone(),
+                        free: remainder.clone(),
+                        lock: t.amount.clone(),
+                        token: token.clone(),
+                    });
+                    for inp_hash in &t.inputs {
+                        res.push(BalanceOp::SpendFree { 
+                            hash: inp_hash.clone(),
+                            address: signer.to_owned(),
+                            token: token.clone(),
+                        });
+                    }
+                }
+                // lock tx end
+                _ => (),
+            },
+            _ => (),
+        };
+        res
+    }
+    
     async fn update_locked_balance(
         &self,
         info: &mut HashMap<String, Balance>,
