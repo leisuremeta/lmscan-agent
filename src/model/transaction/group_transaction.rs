@@ -14,10 +14,48 @@ pub enum GroupTx {
     CreateGroup(CreateGroup),
 }
 
+impl Common for GroupTx {
+    fn created_at(&self) -> i64 {
+        match self {
+            GroupTx::AddAccounts(t) => t.created_at(),
+            GroupTx::CreateGroup(t) => t.created_at(),
+        }
+    }
+
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        tx: TransactionWithResult,
+    ) -> ActiveModel {
+        match self {
+            GroupTx::AddAccounts(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            GroupTx::CreateGroup(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+        }
+    }
+}
+
+impl GroupTx {
+    pub fn get_accounts(&self, signer: String) -> Vec<String> {
+        match self {
+            GroupTx::AddAccounts(tx) => {
+                let mut v = tx.accounts.clone();
+                v.push(signer);
+                v
+            }
+            GroupTx::CreateGroup(tx) => vec![tx.coordinator.clone()],
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddAccounts {
-    pub network_id: i64,
     pub created_at: String,
     pub group_id: String,
     pub accounts: Vec<String>,
@@ -26,7 +64,6 @@ pub struct AddAccounts {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateGroup {
-    pub network_id: i64,
     pub created_at: String,
     pub group_id: String,
     pub name: String,
@@ -37,33 +74,24 @@ impl Common for AddAccounts {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
 
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             tx_type: Set("Group".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("AddAccounts".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -72,67 +100,23 @@ impl Common for CreateGroup {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("LM".to_string()),
             tx_type: Set("Group".to_string()),
             sub_type: Set("CreateGroup".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
-        }
-    }
-}
-
-impl Common for GroupTx {
-    fn created_at(&self) -> i64 {
-        match self {
-            GroupTx::AddAccounts(t) => t.created_at(),
-            GroupTx::CreateGroup(t) => t.created_at(),
-        }
-    }
-
-    fn network_id(&self) -> i64 {
-        match self {
-            GroupTx::AddAccounts(t) => t.network_id(),
-            GroupTx::CreateGroup(t) => t.network_id(),
-        }
-    }
-
-    fn from(
-        &self,
-        hash: String,
-        from_account: String,
-        block_hash: String,
-        block_number: i64,
-        json: String,
-        tx: TransactionWithResult,
-    ) -> ActiveModel {
-        match self {
-            GroupTx::AddAccounts(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
-            GroupTx::CreateGroup(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
         }
     }
 }

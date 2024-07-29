@@ -1,11 +1,6 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 use crate::{
-    block::Block,
-    model::{
-        balance_info::BalanceInfo,
-        node_status::NodeStatus,
-    },
-    transaction::TransactionWithResult,
+    block::Block, model::node_status::NodeStatus, transaction::TransactionWithResult
 };
 use futures_util::TryFutureExt;
 use lazy_static::lazy_static;
@@ -77,23 +72,8 @@ impl ApiService {
         Self::get_request(Self::make_url(&("/tx/".to_owned() + hash))).await
     }
 
-    pub async fn get_tx_with_json_always(hash: &str) -> Result<(TransactionWithResult, String), String> {
-        Self::get_request::<TransactionWithResult>(
-            Self::make_url(&("/tx/".to_owned() + hash))
-        ).await
-        .and_then(|result| 
-            serde_json::to_string(&result)
-            .map(|txt| (result, txt))
-            .map_err(|err| err.to_string())
-        )
-    }
-
-    pub async fn get_balance(
-        address: &str,
-        movable: &str,
-    ) -> Result<HashMap<String, BalanceInfo>, String> {
-        let mut url = Self::make_url(&("/balance/".to_owned() + address));
-        url.set_query(Some(&("movable=".to_owned() + movable)));
-        Self::get_request(url).await
+    pub async fn get_tx_with_json_always(hash: &str) -> Result<String, reqwest::Error> {
+        CLIENT.get(Self::make_url(&("/tx/".to_owned() + hash))).send()
+            .and_then(|res| res.text()).await
     }
 }

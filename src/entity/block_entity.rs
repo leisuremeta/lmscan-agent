@@ -5,8 +5,6 @@ use crate::{
 use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
-// use crate::block_state::Model as BlockState;
-
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "block")]
 pub struct Model {

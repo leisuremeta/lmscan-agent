@@ -35,7 +35,7 @@ async fn nft_file_info_update() {
                     let nft_meta_info_opt: Option<NftMetaInfo> =
                         ApiService::get_request_until(mint_tx.data_url.clone(), 6).await;
 
-                    let nft_file = nft_file::Model::from(&mint_tx, nft_meta_info_opt);
+                    let nft_file = nft_file::Model::from(&mint_tx, nft_meta_info_opt, String::new());
                     nft_file::Entity::update(nft_file).exec(db).await.unwrap();
                 }
             }

@@ -16,7 +16,6 @@ pub async fn db_connn(database_url: String) -> DatabaseConnection {
         .connect_timeout(Duration::from_secs(30))
         .acquire_timeout(Duration::from_secs(30))
         .idle_timeout(Duration::from_secs(120))
-        // .set_schema_search_path("public".into())
         .sqlx_logging(true)
         .sqlx_logging_level(LevelFilter::Debug);
 
@@ -35,7 +34,7 @@ pub fn now() -> i64 {
 
 pub fn as_timestamp(str_date: &str) -> i64 {
     match NaiveDateTime::parse_from_str(str_date, "%Y-%m-%dT%H:%M:%S%.3fZ") {
-        Ok(v) => v.timestamp(),
+        Ok(v) => v.and_utc().timestamp(),
         Err(err) => panic!("timestamp parse err '{str_date}' - {err}"),
     }
 }
@@ -68,13 +67,6 @@ pub fn into_byte_vec<T: serde::Serialize>(value: &T) -> Vec<u8> {
 
 pub fn parse_from_json_str<'a, T: serde::Deserialize<'a>>(json: &'a str) -> Result<T, serde_json::Error> {
     serde_json::from_str::<T>(json)
-    // match serde_json::from_str::<T>(json) {
-    //     Ok(result) => Ok(result),
-    //     Err(err) => {
-    //         error!("{json}: {err}");
-    //         Err(err)
-    //     }
-    // }
 }
 
 pub fn as_path_buf(sled_path: &str) -> PathBuf {

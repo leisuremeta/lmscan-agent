@@ -16,10 +16,45 @@ pub enum AgendaTx {
     VoteSimpleAgenda(VoteSimpleAgenda),
 }
 
+impl Common for AgendaTx {
+    fn created_at(&self) -> i64 {
+        match self {
+            AgendaTx::SuggestSimpleAgenda(t) => t.created_at(),
+            AgendaTx::VoteSimpleAgenda(t) => t.created_at(),
+        }
+    }
+
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        tx: TransactionWithResult,
+    ) -> ActiveModel {
+        match self {
+            AgendaTx::SuggestSimpleAgenda(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            AgendaTx::VoteSimpleAgenda(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+        }
+    }
+}
+
+impl AgendaTx {
+    pub fn get_accounts(&self) -> Vec<String> {
+        // only signed account
+        match self {
+            AgendaTx::SuggestSimpleAgenda(_) => todo!(),
+            AgendaTx::VoteSimpleAgenda(_) => todo!(),
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SuggestSimpleAgenda {
-    pub network_id: i64,
     pub created_at: String,
     pub title: String,
     pub voting_token: String,
@@ -31,77 +66,32 @@ pub struct SuggestSimpleAgenda {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteSimpleAgenda {
-    pub network_id: i64,
     pub created_at: String,
     pub agenda_tx_hash: String,
     pub selected_option: String,
-}
-
-impl Common for AgendaTx {
-    fn created_at(&self) -> i64 {
-        match self {
-            AgendaTx::SuggestSimpleAgenda(t) => t.created_at(),
-            AgendaTx::VoteSimpleAgenda(t) => t.created_at(),
-        }
-    }
-
-    fn network_id(&self) -> i64 {
-        match self {
-            AgendaTx::SuggestSimpleAgenda(t) => t.network_id(),
-            AgendaTx::VoteSimpleAgenda(t) => t.network_id(),
-        }
-    }
-
-    fn from(
-        &self,
-        hash: String,
-        from_account: String,
-        block_hash: String,
-        block_number: i64,
-        json: String,
-        tx: TransactionWithResult,
-    ) -> ActiveModel {
-        match self {
-            AgendaTx::SuggestSimpleAgenda(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
-            AgendaTx::VoteSimpleAgenda(t) => {
-                t.from(hash, from_account, block_hash, block_number, json, tx)
-            }
-        }
-    }
 }
 
 impl Common for SuggestSimpleAgenda {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("".to_string()),
             tx_type: Set("Agenda".to_string()),
             sub_type: Set("SuggestSimpleAgenda".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }
@@ -110,32 +100,23 @@ impl Common for VoteSimpleAgenda {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
     }
-    fn network_id(&self) -> i64 {
-        self.network_id
-    }
     fn from(
         &self,
         hash: String,
-        from_account: String,
         block_hash: String,
         block_number: i64,
-        json: String,
-        _: TransactionWithResult,
+        txr: TransactionWithResult,
     ) -> ActiveModel {
         ActiveModel {
             hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
             token_type: Set("".to_string()),
             tx_type: Set("Agenda".to_string()),
             sub_type: Set("VoteSimpleAgenda".to_string()),
-            from_addr: Set(from_account),
-            to_addr: Set(vec![]),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
             created_at: Set(now()),
-            input_hashs: Set(None),
-            output_vals: Set(None),
-            json: Set(json),
         }
     }
 }

@@ -2,8 +2,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::*;
 
 use crate::{
-    library::common::{as_timestamp, now},
-    transaction::{token_transaction::MintNft, NftMetaInfo},
+    library::common::{as_timestamp, now}, nft_app::NftMetaInfo, transaction::token_transaction::MintNft
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -21,7 +20,6 @@ pub struct Model {
     pub creator: String,
     pub event_time: i64,
     pub created_at: i64,
-    // pub owner: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -43,7 +41,6 @@ impl Model {
             creator: Set(info.creator),
             event_time: Set(as_timestamp(&tx.created_at)),
             created_at: Set(now()),
-            // owner: Set(tx.output.to_owned()),
         }
     }
 }
