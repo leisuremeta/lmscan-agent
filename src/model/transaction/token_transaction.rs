@@ -27,11 +27,17 @@ pub enum TokenTx {
     TransferFungibleToken(TransferFungibleToken),
     #[serde(rename = "MintNFT")]
     MintNft(MintNft),
+    #[serde(rename = "MintNFTWithMemo")]
+    MintNftWithMemo(MintNft),
+    #[serde(rename = "UpdateNFT")]
+    UpdateNft(MintNft),
     MintFungibleToken(MintFungibleToken),
     DefineToken(DefineToken),
+    DefineTokenWithPrecision(DefineToken),
     #[serde(rename = "DisposeEntrustedNFT")]
     DisposeEntrustedNft(DisposeEntrustedNft),
     DisposeEntrustedFungibleToken(DisposeEntrustedFungibleToken),
+    CreateSnapshot(CreateSnapshot),
 }
 
 impl Common for TokenTx {
@@ -42,12 +48,16 @@ impl Common for TokenTx {
             TokenTx::TransferNft(t) => t.created_at(),
             TokenTx::TransferFungibleToken(t) => t.created_at(),
             TokenTx::MintNft(t) => t.created_at(),
+            TokenTx::MintNftWithMemo(t) => t.created_at(),
+            TokenTx::UpdateNft(t) => t.created_at(),
             TokenTx::MintFungibleToken(t) => t.created_at(),
             TokenTx::DefineToken(t) => t.created_at(),
+            TokenTx::DefineTokenWithPrecision(t) => t.created_at(),
             TokenTx::DisposeEntrustedNft(t) => t.created_at(),
             TokenTx::DisposeEntrustedFungibleToken(t) => t.created_at(),
             TokenTx::BurnNft(t) => t.created_at(),
             TokenTx::BurnFungibleToken(t) => t.created_at(),
+            TokenTx::CreateSnapshot(t) => t.created_at(),
         }
     }
 
@@ -60,34 +70,20 @@ impl Common for TokenTx {
     ) -> ActiveModel {
         match self {
             TokenTx::BurnNft(t) => t.from(hash, block_hash, block_number, tx),
-            TokenTx::EntrustNft(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::EntrustFungibleToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::TransferNft(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::TransferFungibleToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
+            TokenTx::EntrustNft(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::EntrustFungibleToken(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::TransferNft(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::TransferFungibleToken(t) => t.from(hash, block_hash, block_number, tx),
             TokenTx::MintNft(t) => t.from(hash, block_hash, block_number, tx),
-            TokenTx::MintFungibleToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::DefineToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::DisposeEntrustedNft(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::DisposeEntrustedFungibleToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
-            TokenTx::BurnFungibleToken(t) => {
-                t.from(hash, block_hash, block_number, tx)
-            }
+            TokenTx::MintNftWithMemo(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::UpdateNft(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::MintFungibleToken(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::DefineToken(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::DefineTokenWithPrecision(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::DisposeEntrustedNft(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::DisposeEntrustedFungibleToken(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::BurnFungibleToken(t) => t.from(hash, block_hash, block_number, tx),
+            TokenTx::CreateSnapshot(t) => t.from(hash, block_hash, block_number, tx),
         }
     }
 }
@@ -226,6 +222,34 @@ pub struct MintNft {
     pub output: String,
 }
 
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct MintNftWithMemo {
+    pub created_at: String,
+    pub token_definition_id: String,
+    pub token_id: String,
+    pub rarity: String,
+    pub data_url: String,
+    pub content_hash: String,
+    pub output: String,
+    pub memo: Option<String>,
+}
+
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateNft {
+    pub created_at: String,
+    pub token_definition_id: String,
+    pub token_id: String,
+    pub rarity: String,
+    pub data_url: String,
+    pub content_hash: String,
+    pub output: String,
+    pub memo: Option<String>,
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MintFungibleToken {
@@ -280,6 +304,14 @@ pub struct DisposeEntrustedFungibleToken {
     pub definition_id: String,
     pub inputs: HashSet<String>,
     pub outputs: HashMap<String, BigDecimal>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSnapshot {
+    pub created_at: String,
+    pub definition_id: String,
+    pub memo: Option<String>,
 }
 
 impl Common for EntrustNft {
@@ -432,6 +464,56 @@ impl Common for MintNft {
     }
 }
 
+impl Common for MintNftWithMemo {
+    fn created_at(&self) -> i64 {
+        as_timestamp(self.created_at.as_str())
+    }
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        txr: TransactionWithResult,
+    ) -> ActiveModel {
+        ActiveModel {
+            hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
+            tx_type: Set("Token".to_string()),
+            token_type: Set("NFT".to_string()),
+            sub_type: Set("MintNftWithMemo".to_string()),
+            block_hash: Set(block_hash),
+            block_number: Set(block_number),
+            event_time: Set(self.created_at()),
+            created_at: Set(now()),
+        }
+    }
+}
+
+impl Common for UpdateNft {
+    fn created_at(&self) -> i64 {
+        as_timestamp(self.created_at.as_str())
+    }
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        txr: TransactionWithResult,
+    ) -> ActiveModel {
+        ActiveModel {
+            hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
+            tx_type: Set("Token".to_string()),
+            token_type: Set("NFT".to_string()),
+            sub_type: Set("UpdateNft".to_string()),
+            block_hash: Set(block_hash),
+            block_number: Set(block_number),
+            event_time: Set(self.created_at()),
+            created_at: Set(now()),
+        }
+    }
+}
+
 impl Common for MintFungibleToken {
     fn created_at(&self) -> i64 {
         as_timestamp(self.created_at.as_str())
@@ -549,6 +631,32 @@ impl Common for BurnNft {
             tx_type: Set("Token".to_string()),
             token_type: Set("NFT".to_string()),
             sub_type: Set("BurnNft".to_string()),
+            block_hash: Set(block_hash),
+            block_number: Set(block_number),
+            event_time: Set(self.created_at()),
+            created_at: Set(now()),
+        }
+    }
+}
+
+
+impl Common for CreateSnapshot {
+    fn created_at(&self) -> i64 {
+        as_timestamp(self.created_at.as_str())
+    }
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        txr: TransactionWithResult,
+    ) -> ActiveModel {
+        ActiveModel {
+            hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
+            tx_type: Set("Token".to_string()),
+            token_type: Set("LM".to_string()),
+            sub_type: Set("CreateSnapshot".to_string()),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),

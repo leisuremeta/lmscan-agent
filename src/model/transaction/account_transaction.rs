@@ -14,6 +14,8 @@ pub enum AccountTx {
     AddPublicKeySummaries(AddPublicKeySummaries),
     CreateAccount(CreateAccount),
     UpdateAccount(UpdateAccount),
+    CreateAccountWithExternalChainAddresses(CreateAccountWithExternalChainAddresses),
+    UpdateAccountWithExternalChainAddresses(UpdateAccountWithExternalChainAddresses),
 }
 
 impl Common for AccountTx {
@@ -22,6 +24,8 @@ impl Common for AccountTx {
             AccountTx::AddPublicKeySummaries(t) => t.created_at(),
             AccountTx::CreateAccount(t) => t.created_at(),
             AccountTx::UpdateAccount(t) => t.created_at(),
+            AccountTx::CreateAccountWithExternalChainAddresses(t) => t.created_at(),
+            AccountTx::UpdateAccountWithExternalChainAddresses(t) => t.created_at(),
         }
     }
 
@@ -40,6 +44,12 @@ impl Common for AccountTx {
                 t.from(hash, block_hash, block_number, tx)
             }
             AccountTx::UpdateAccount(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            AccountTx::CreateAccountWithExternalChainAddresses(t) => {
+                t.from(hash, block_hash, block_number, tx)
+            }
+            AccountTx::UpdateAccountWithExternalChainAddresses(t) => {
                 t.from(hash, block_hash, block_number, tx)
             }
         }
@@ -86,6 +96,24 @@ pub struct UpdateAccount {
     pub account: String,
     pub eth_address: Option<String>,
     pub guardian: Option<String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAccountWithExternalChainAddresses {
+    pub created_at: String,
+    pub account: String,
+    pub guardian: Option<String>,
+    // pub externalChainAddresses: Map<String, String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAccountWithExternalChainAddresses {
+    pub created_at: String,
+    pub account: String,
+    pub guardian: Option<String>,
+    // pub externalChainAddresses: Map<String, String>,
 }
 
 impl Common for AddPublicKeySummaries {
@@ -156,6 +184,56 @@ impl Common for UpdateAccount {
             tx_type: Set("Account".to_string()),
             token_type: Set("LM".to_string()),
             sub_type: Set("UpdateAccount".to_string()),
+            block_hash: Set(block_hash),
+            block_number: Set(block_number),
+            event_time: Set(self.created_at()),
+            created_at: Set(now()),
+        }
+    }
+}
+
+impl Common for CreateAccountWithExternalChainAddresses {
+    fn created_at(&self) -> i64 {
+        as_timestamp(self.created_at.as_str())
+    }
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        txr: TransactionWithResult,
+    ) -> ActiveModel {
+        ActiveModel {
+            hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
+            tx_type: Set("Account".to_string()),
+            token_type: Set("LM".to_string()),
+            sub_type: Set("CreateAccountWithExternalChainAddresses".to_string()),
+            block_hash: Set(block_hash),
+            block_number: Set(block_number),
+            event_time: Set(self.created_at()),
+            created_at: Set(now()),
+        }
+    }
+}
+
+impl Common for UpdateAccountWithExternalChainAddresses {
+    fn created_at(&self) -> i64 {
+        as_timestamp(self.created_at.as_str())
+    }
+    fn from(
+        &self,
+        hash: String,
+        block_hash: String,
+        block_number: i64,
+        txr: TransactionWithResult,
+    ) -> ActiveModel {
+        ActiveModel {
+            hash: Set(hash),
+            signer: Set(txr.signed_tx.sig.account.clone()),
+            tx_type: Set("Account".to_string()),
+            token_type: Set("LM".to_string()),
+            sub_type: Set("CreateAccountWithExternalChainAddresses".to_string()),
             block_hash: Set(block_hash),
             block_number: Set(block_number),
             event_time: Set(self.created_at()),
